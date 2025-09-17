@@ -23,10 +23,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // User
-    Route::resources('user', UserController::class);
+    Route::resource('user', UserController::class);
 
     // Kategori
-    Route::resources('kategori', KategoriController::class);
+    Route::resource('kategori', KategoriController::class);
 
     // Lokasi
     Route::resource('lokasi', LokasiController::class);
