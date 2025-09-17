@@ -6,15 +6,15 @@ use App\Http\Controllers\BarangController;
 use App\Http\Controllers\KategoriController;
 use App\Http\Controllers\LokasiController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\DashboardController;
 use App\Models\Lokasi;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     // Profile
@@ -22,6 +22,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // Dashboard
+    Route::get('/barang/laporan', [BarangController::class, 'cetakLaporan'])->name('barang.laporan');
+    Route::resource('barang', BarangController::class);
+    
     // User
     Route::resource('user', UserController::class);
 

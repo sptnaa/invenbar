@@ -42,7 +42,20 @@
         </main>
     </div>
 
+    <x-modal-delete />
+
     {{-- Bootstrap JS --}}
     <script src="{{ asset('bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+
+    <script>
+        const deleteModal = document.getElementById('deleteModal')
+
+        deleteModal.addEventListener('show.bs.modal', event => {
+            const button = event.relatedTarget
+            const url = button.getAttribute('data-url')
+            const deleteForm = deleteModal.querySelector('form')
+            deleteForm.setAttribute('action', url)
+        });
+    </script>
 </body>
 </html>
