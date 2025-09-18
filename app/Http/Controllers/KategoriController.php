@@ -13,7 +13,7 @@ class KategoriController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('permission:view kategori', only: ['index', 'show']),
-            new Middleware('permission:view kategori', except: ['index', 'show']),
+            new Middleware('permission:manage kategori', except: ['index', 'show']),
         ];
     }
     /**
@@ -89,7 +89,6 @@ class KategoriController extends Controller implements HasMiddleware
         return redirect()->route('kategori.index')
             ->with('success', 'Kategori berhasil diperbarui.');
     }
-
 
     /**
      * Remove the specified resource from storage.

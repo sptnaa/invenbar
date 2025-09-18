@@ -19,11 +19,13 @@
                 </div>
             </div>
 
-            <div class="card shadow-sm mt-4">
-                <div class="card-body">
-                    @include('profile.partials.delete-user-form')
+            @if (Route::has('profile.destroy'))
+                <div class="card shadow-sm mt-4">
+                    <div class="card-body">
+                        @include('profile.partials.delete-user-form')
+                    </div>
                 </div>
-            </div>
+            @endif
         </div>
     </div>
 </x-app-layout>
