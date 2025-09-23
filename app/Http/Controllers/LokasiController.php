@@ -23,15 +23,18 @@ class LokasiController extends Controller implements HasMiddleware
     {
         $search = $request->search ?? null;
 
-        $lokasis = Lokasi::when($search, function ($query, $search) {
+        $lokasis = Lokasi::withSum('barang', 'jumlah') // 'jumlah' = nama kolom stok
+            ->when($search, function ($query, $search) {
                 $query->where('nama_lokasi', 'like', '%' . $search . '%');
             })
             ->latest()
             ->paginate()
             ->withQueryString();
 
+
         return view('lokasi.index', compact('lokasis'));
     }
+
 
     /**
      * Show the form for creating a new resource.

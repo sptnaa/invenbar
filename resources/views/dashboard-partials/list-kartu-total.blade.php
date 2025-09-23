@@ -3,28 +3,28 @@
         $kartus = [
             [
             'text' => 'TOTAL BARANG',
-            'total' => '$jumlahBarang',
+            'total' => $jumlahBarang,
             'route' => 'barang.index',
             'icon' => 'bi-box-seam',
             'color' => 'primary',
             ],
             [
             'text' => 'TOTAL KATEGORI',
-            'total' => '$jumlahKategori',
+            'total' => $jumlahKategori,
             'route' => 'kategori.index',
             'icon' => 'bi-tag',
             'color' => 'secondary',
             ],
             [
             'text' => 'TOTAL LOKASI',
-            'total' => '$jumlahLokasi',
+            'total' => $jumlahLokasi,
             'route' => 'lokasi.index',
             'icon' => 'bi-geo-alt',
             'color' => 'success',
             ],
             [
             'text' => 'TOTAL USER',
-            'total' => '$jumlahUser',
+            'total' => $jumlahUser,
             'route' => 'user.index',
             'icon' => 'bi-people',
             'color' => 'danger',
