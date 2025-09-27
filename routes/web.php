@@ -8,6 +8,7 @@ use App\Http\Controllers\LokasiController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DashboardController;
 use App\Models\Lokasi;
+use App\Http\Controllers\PeminjamanController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -37,6 +38,25 @@ Route::middleware('auth')->group(function () {
 
     // Barang
     Route::resource('barang', BarangController::class);
+
+    // Peminjaman Routes
+    Route::resource('peminjaman', PeminjamanController::class);
+    
+    // Pengembalian barang
+    Route::patch('peminjaman/{peminjaman}/pengembalian', [PeminjamanController::class, 'pengembalian'])
+        ->name('peminjaman.pengembalian');
+    
+    // AJAX untuk mendapatkan data barang
+    Route::get('peminjaman/barang/data', [PeminjamanController::class, 'getBarangData'])
+        ->name('peminjaman.barang.data');
+    
+    // Laporan peminjaman
+    Route::get('peminjaman-laporan', [PeminjamanController::class, 'laporan'])
+        ->name('peminjaman.laporan');
+    
+    // Dashboard data (untuk AJAX)
+    Route::get('dashboard/peminjaman-data', [PeminjamanController::class, 'dashboardData'])
+        ->name('dashboard.peminjaman.data');
 });
 
 require __DIR__.'/auth.php';
