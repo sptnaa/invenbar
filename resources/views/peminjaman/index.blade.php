@@ -97,7 +97,7 @@
                         <th width="10%">Tgl. Pinjam</th>
                         <th width="10%">Tgl. Kembali</th>
                         <th width="8%">Status</th>
-                        <th width="12%">Aksi</th>
+                        <th width="10%">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -170,63 +170,35 @@
                                 @endif
                             </div>
                         </td>
-                        <td class="align-middle" style="min-width: 150px;">
-                            <div class="d-flex flex-column gap-2">
-                                <!-- Tombol Detail, Edit, Hapus -->
-                                <div class="d-flex gap-1 justify-content-center flex-wrap">
-                                    @can('view peminjaman')
-                                    <a href="{{ route('peminjaman.show', $peminjaman->id) }}"
-                                        class="btn btn-info btn-sm text-white" title="Detail"
-                                        style="min-width: 45px; font-size: 0.75rem;">
-                                        <i class="fas fa-eye"></i> Detail
-                                    </a>
-                                    @endcan
+                        <td class="align-middle text-center">
+                            <div class="d-flex justify-content-center gap-2">
+                                @can('view peminjaman')
+                                <x-tombol-aksi :href="route('peminjaman.show', $peminjaman->id)" type="show" />
+                                @endcan
 
-                                    @if($peminjaman->status !== 'Sudah Dikembalikan')
-                                    @can('manage peminjaman')
-                                    <a href="{{ route('peminjaman.edit', $peminjaman->id) }}"
-                                        class="btn btn-warning btn-sm text-dark" title="Edit"
-                                        style="min-width: 45px; font-size: 0.75rem;">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </a>
-                                    @endcan
-                                    @endif
+                                @if($peminjaman->status !== 'Sudah Dikembalikan')
+                                @can('manage peminjaman')
+                                <x-tombol-aksi :href="route('peminjaman.edit', $peminjaman->id)" type="edit" />
+                                @endcan
+                                @endif
 
-                                    @can('delete peminjaman')
-                                    <form action="{{ route('peminjaman.destroy', $peminjaman->id) }}"
-                                        method="POST" class="d-inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-danger btn-sm text-white"
-                                            onclick="return confirm('Yakin hapus data peminjaman ini?')"
-                                            title="Hapus" style="min-width: 45px; font-size: 0.75rem;">
-                                            <i class="fas fa-trash"></i> Hapus
-                                        </button>
-                                    </form>
-                                    @endcan
-                                </div>
+                                @can('delete peminjaman')
+                                <x-tombol-aksi :href="route('peminjaman.destroy', $peminjaman->id)" type="delete" />
+                                @endcan
 
-                                <!-- Tombol Kembalikan (jika belum dikembalikan) -->
                                 @if($peminjaman->status !== 'Sudah Dikembalikan')
                                 @can('manage peminjaman')
                                 <form action="{{ route('peminjaman.pengembalian', $peminjaman->id) }}"
-                                    method="POST" class="w-100">
+                                    method="POST" class="d-inline">
                                     @csrf
                                     @method('PATCH')
-                                    <button type="submit" class="btn btn-success btn-sm w-100"
-                                        onclick="return confirm('Konfirmasi pengembalian barang?')"
-                                        title="Kembalikan Barang"
-                                        style="font-size: 0.75rem; padding: 4px 8px;">
-                                        <i class="fas fa-undo me-1"></i>Kembalikan
-                                    </button>
+                                    <x-tombol-aksi type="return" />
                                 </form>
                                 @endcan
-                                @else
-                                <!-- Placeholder untuk menjaga konsistensi tinggi baris -->
-                                <div style="height: 28px;"></div>
                                 @endif
                             </div>
                         </td>
+
                     </tr>
                     @empty
                     <tr>

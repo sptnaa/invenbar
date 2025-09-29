@@ -13,11 +13,11 @@
             <td>{{ $barang->lokasi->nama_lokasi }}</td>
         </tr>
         <tr>
-            <th>Jumlah</th>
+            <th>Total Jumlah</th>
             <td>{{ $barang->jumlah }} {{ $barang->satuan }}</td>
         </tr>
         <tr>
-            <th>Kondisi</th>
+            <th>Kondisi Umum</th>
             <td>
                 @php
                     $badgeClass = 'bg-success';
@@ -41,3 +41,34 @@
         </tr>
     </tbody>
 </table>
+
+<!-- Tambahkan Breakdown Kondisi -->
+<div class="mt-4">
+    <h6 class="text-primary mb-3">📊 Detail Kondisi Barang</h6>
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h5 class="text-success">{{ $barang->jumlah_baik ?? 0 }}</h5>
+                    <small class="text-muted">Kondisi Baik</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h5 class="text-warning">{{ $barang->jumlah_rusak_ringan ?? 0 }}</h5>
+                    <small class="text-muted">Rusak Ringan</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card border-danger">
+                <div class="card-body text-center">
+                    <h5 class="text-danger">{{ $barang->jumlah_rusak_berat ?? 0 }}</h5>
+                    <small class="text-muted">Rusak Berat</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

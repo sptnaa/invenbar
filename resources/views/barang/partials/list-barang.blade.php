@@ -1,46 +1,103 @@
-<x-table-list>
-    <x-slot name="header">
-        <tr>
-            <th>#</th>
-            <th>Kode</th>
-            <th>Nama Barang</th>
-            <th>Kategori</th>
-            <th>Lokasi</th>
-            <th>Jumlah</th>
-            <th>Kondisi</th>
-            <th>&nbsp;</th>
-        </tr>
-    </x-slot>
+<style>
+.condition-badges {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
 
-    @forelse ($barangs as $index => $barang)
-        <tr>
-            <td>{{ $barangs->firstItem() + $index }}</td>
-            <td>{{ $barang->kode_barang }}</td>
-            <td>{{ $barang->nama_barang }}</td>
-            <td>{{ $barang->kategori->nama_kategori }}</td>
-            <td>{{ $barang->lokasi->nama_lokasi }}</td>
-            <td>{{ $barang->jumlah }} {{ $barang->satuan }}</td>
-            <td>
-                <span class="badge bg-info">{{ $barang->kondisi }}</span>
-            </td>
-            <td class="text-end">
-                @can('manage barang')
-                    <x-tombol-aksi href="{{ route('barang.show', $barang->id) }}" type="show" />
-                    <x-tombol-aksi href="{{ route('barang.edit', $barang->id) }}" type="edit" />
-                @endcan
+.condition-badge {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 50px;
+    backdrop-filter: blur(10px);
+}
 
-                @can('delete barang')
-                    <x-tombol-aksi href="{{ route('barang.destroy', $barang->id) }}" type="delete" />
-                @endcan
-            </td>
-        </tr>
-    @empty
-        <tr>
-            <td colspan="8" class="text-center">
-                <div class="alert alert-danger">
-                    Data barang belum tersedia.
+.condition-baik {
+    color: #28a745;
+    border-color: #28a745;
+}
+
+.condition-rusak-ringan {
+    color: #ffc107;
+    border-color: #ffc107;
+}
+
+.condition-rusak-berat {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.card-hover {
+    transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+</style>
+
+<div class="card-body p-0">
+    <div class="row p-4">
+        @forelse ($barangs as $barang)
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card h-100 position-relative card-hover">
+                    <div class="condition-badges">
+                        @foreach($barang->kondisi_array as $kondisi)
+                            <div class="condition-badge {{ $kondisi['class'] }}">
+                                {{ $kondisi['label'] }}
+                            </div>
+                        @endforeach
+                    </div>
+                    
+                    <div class="card-header bg-light">
+                        <span class="badge bg-primary mb-2">{{ $barang->kode_barang }}</span>
+                        <h5 class="card-title mb-0">{{ $barang->nama_barang }}</h5>
+                    </div>
+                    
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <small class="text-muted d-block">KATEGORI</small>
+                            <strong>{{ $barang->kategori->nama_kategori }}</strong>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted d-block">LOKASI</small>
+                            <strong>{{ $barang->lokasi->nama_lokasi }}</strong>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted d-block">TOTAL</small>
+                            <strong>{{ $barang->jumlah }} {{ $barang->satuan }}</strong>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer bg-white border-top d-flex justify-content-end gap-1">
+                        @can('manage barang')
+                            <x-tombol-aksi href="{{ route('barang.show', $barang->id) }}" type="show" />
+                            <x-tombol-aksi href="{{ route('barang.edit', $barang->id) }}" type="edit" />
+                        @endcan
+
+                        @can('delete barang')
+                            <x-tombol-aksi href="{{ route('barang.destroy', $barang->id) }}" type="delete" />
+                        @endcan
+                    </div>
                 </div>
-            </td>
-        </tr>
-    @endforelse
-</x-table-list>
+            </div>
+        @empty
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <h5>📦 Data barang belum tersedia</h5>
+                    <p class="mb-0">Silakan tambahkan barang baru untuk memulai.</p>
+                </div>
+            </div>
+        @endforelse
+    </div>
+</div>

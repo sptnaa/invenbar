@@ -22,4 +22,10 @@
             <i class="bi bi-x-circle"></i>
         </button>
         @break
+
+    @case('return')
+        <button type="submit" class="btn btn-sm btn-success">
+            <i class="bi bi-arrow-return-left"></i>
+        </button>
+        @break
 @endswitch

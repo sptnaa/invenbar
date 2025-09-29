@@ -29,6 +29,45 @@ class Barang extends Model
         return $this->hasMany(Peminjaman::class, 'barang_id');
     }
 
+    // TAMBAHKAN KODE INI
+    // Accessor untuk kondisi dominan
+    public function getKondisiDominanAttribute()
+    {
+        if ($this->jumlah_baik >= $this->jumlah_rusak_ringan && $this->jumlah_baik >= $this->jumlah_rusak_berat) {
+            return 'Baik';
+        } elseif ($this->jumlah_rusak_ringan >= $this->jumlah_rusak_berat) {
+            return 'Rusak Ringan';
+        } else {
+            return 'Rusak Berat';
+        }
+    }
+
+    // Method untuk mendapatkan array kondisi untuk badge
+    public function getKondisiArrayAttribute()
+    {
+        $kondisi = [];
+        if ($this->jumlah_baik > 0) {
+            $kondisi[] = [
+                'label' => "Baik ({$this->jumlah_baik})",
+                'class' => 'condition-baik'
+            ];
+        }
+        if ($this->jumlah_rusak_ringan > 0) {
+            $kondisi[] = [
+                'label' => "R.Ringan ({$this->jumlah_rusak_ringan})",
+                'class' => 'condition-rusak-ringan'
+            ];
+        }
+        if ($this->jumlah_rusak_berat > 0) {
+            $kondisi[] = [
+                'label' => "R.Berat ({$this->jumlah_rusak_berat})",
+                'class' => 'condition-rusak-berat'
+            ];
+        }
+        return $kondisi;
+    }
+    // AKHIR TAMBAHAN
+
     // Hitung stok tersedia (jumlah - yang sedang dipinjam)
     public function getStokTersediaAttribute()
     {
