@@ -21,7 +21,7 @@
                 ['route' => 'barang.index', 'name' => 'Barang'],
                 ['route' => 'lokasi.index', 'name' => 'Lokasi'],
                 ['route' => 'kategori.index', 'name' => 'Kategori'],
-                ['route' => 'peminjaman.index', 'name' => 'Transaksi'],
+                ['route' => 'peminjaman.index', 'name' => 'Peminjaman'],
                 ['route' => 'user.index', 'name' => 'User', 'role' => 'admin'],
                 ];
                 @endphp

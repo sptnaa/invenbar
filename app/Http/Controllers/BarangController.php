@@ -61,12 +61,34 @@ class BarangController extends Controller implements HasMiddleware
             'nama_barang' => 'required|string|max:150',
             'kategori_id' => 'required|exists:kategoris,id',
             'lokasi_id' => 'required|exists:lokasis,id',
-            'jumlah' => 'required|integer|min:0',
+            'jumlah_baik' => 'required|integer|min:0',
+            'jumlah_rusak_ringan' => 'required|integer|min:0',
+            'jumlah_rusak_berat' => 'required|integer|min:0',
             'satuan' => 'required|string|max:20',
-            'kondisi' => 'required|in:Baik,Rusak Ringan,Rusak Berat',
             'tanggal_pengadaan' => 'required|date',
             'gambar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'is_pinjaman' => 'nullable|boolean',
         ]);
+
+        // Hitung total jumlah
+        $validated['jumlah'] = $validated['jumlah_baik']
+            + $validated['jumlah_rusak_ringan']
+            + $validated['jumlah_rusak_berat'];
+
+        // Set kondisi dominan
+        if (
+            $validated['jumlah_baik'] >= $validated['jumlah_rusak_ringan']
+            && $validated['jumlah_baik'] >= $validated['jumlah_rusak_berat']
+        ) {
+            $validated['kondisi'] = 'Baik';
+        } elseif ($validated['jumlah_rusak_ringan'] >= $validated['jumlah_rusak_berat']) {
+            $validated['kondisi'] = 'Rusak Ringan';
+        } else {
+            $validated['kondisi'] = 'Rusak Berat';
+        }
+
+        // Checkbox "barang bisa dipinjam"
+        $validated['is_pinjaman'] = $request->has('is_pinjaman');
 
         if ($request->hasFile('gambar')) {
             $validated['gambar'] = $request->file('gambar')->store(null, 'gambar-barang');
@@ -77,6 +99,7 @@ class BarangController extends Controller implements HasMiddleware
         return redirect()->route('barang.index')
             ->with('success', 'Data barang berhasil ditambahkan.');
     }
+
 
 
     /**
@@ -106,16 +129,38 @@ class BarangController extends Controller implements HasMiddleware
     public function update(Request $request, Barang $barang)
     {
         $validated = $request->validate([
-            'kode_barang'      => 'required|string|max:50|unique:barangs,kode_barang,' . $barang->id,
-            'nama_barang'      => 'required|string|max:150',
-            'kategori_id'      => 'required|exists:kategoris,id',
-            'lokasi_id'        => 'required|exists:lokasis,id',
-            'jumlah'           => 'required|integer|min:0',
-            'satuan'           => 'required|string|max:20',
-            'kondisi'          => 'required|in:Baik,Rusak Ringan,Rusak Berat',
-            'tanggal_pengadaan' => 'required|date',
-            'gambar'           => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'kode_barang'        => 'required|string|max:50|unique:barangs,kode_barang,' . $barang->id,
+            'nama_barang'        => 'required|string|max:150',
+            'kategori_id'        => 'required|exists:kategoris,id',
+            'lokasi_id'          => 'required|exists:lokasis,id',
+            'jumlah_baik'        => 'required|integer|min:0',
+            'jumlah_rusak_ringan' => 'required|integer|min:0',
+            'jumlah_rusak_berat' => 'required|integer|min:0',
+            'satuan'             => 'required|string|max:20',
+            'tanggal_pengadaan'  => 'required|date',
+            'gambar'             => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'is_pinjaman'        => 'nullable|boolean',
         ]);
+
+        // Hitung total jumlah
+        $validated['jumlah'] = $validated['jumlah_baik']
+            + $validated['jumlah_rusak_ringan']
+            + $validated['jumlah_rusak_berat'];
+
+        // Set kondisi dominan
+        if (
+            $validated['jumlah_baik'] >= $validated['jumlah_rusak_ringan']
+            && $validated['jumlah_baik'] >= $validated['jumlah_rusak_berat']
+        ) {
+            $validated['kondisi'] = 'Baik';
+        } elseif ($validated['jumlah_rusak_ringan'] >= $validated['jumlah_rusak_berat']) {
+            $validated['kondisi'] = 'Rusak Ringan';
+        } else {
+            $validated['kondisi'] = 'Rusak Berat';
+        }
+
+        // Checkbox "barang bisa dipinjam"
+        $validated['is_pinjaman'] = $request->has('is_pinjaman');
 
         if ($request->hasFile('gambar')) {
             if ($barang->gambar) {
@@ -127,8 +172,10 @@ class BarangController extends Controller implements HasMiddleware
 
         $barang->update($validated);
 
-        return redirect()->route('barang.index')->with('success', 'Data barang berhasil diperbarui.');
+        return redirect()->route('barang.index')
+            ->with('success', 'Data barang berhasil diperbarui.');
     }
+
 
     /**
      * Remove the specified resource from storage.

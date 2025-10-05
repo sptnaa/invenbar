@@ -75,7 +75,7 @@
                         </div>
                         <div class="mb-2">
                             <small class="text-muted d-block">TOTAL</small>
-                            <strong>{{ $barang->jumlah }} {{ $barang->satuan }}</strong>
+                            <strong>{{ $barang->stok_tersedia }} {{ $barang->satuan }}</strong>
                         </div>
                     </div>
                     

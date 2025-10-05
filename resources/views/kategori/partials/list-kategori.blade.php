@@ -4,7 +4,7 @@
             <th>#</th>
             <th>Nama Kategori</th>
             @can('manage kategori')
-                <th>&nbsp;</th>
+                <th>Aksi</th>
             @endcan
         </tr>
     </x-slot>

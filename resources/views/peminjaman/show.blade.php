@@ -75,7 +75,7 @@
                             <td>{{ $peminjaman->jumlah_pinjam }} {{ $peminjaman->barang->satuan }}</td>
                         </tr>
                         <tr>
-                            <th>Kondisi Barang</th>
+                            <th>Kondisi Barang (Master)</th>
                             <td>
                                 @php
                                     $kondisiBadge = 'bg-success';
@@ -87,6 +87,25 @@
                                     }
                                 @endphp
                                 <span class="badge {{ $kondisiBadge }}">{{ $peminjaman->barang->kondisi }}</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Kondisi Saat Dikembalikan</th>
+                            <td>
+                                @if($peminjaman->kondisi_barang)
+                                    @php
+                                        $kondisiBadge = 'bg-success';
+                                        if ($peminjaman->kondisi_barang == 'Rusak Ringan') {
+                                            $kondisiBadge = 'bg-warning text-dark';
+                                        }
+                                        if ($peminjaman->kondisi_barang == 'Rusak Berat') {
+                                            $kondisiBadge = 'bg-danger';
+                                        }
+                                    @endphp
+                                    <span class="badge {{ $kondisiBadge }}">{{ $peminjaman->kondisi_barang }}</span>
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
                             </td>
                         </tr>
                     </table>
@@ -148,9 +167,6 @@
                     Barang dikembalikan terlambat {{ $peminjaman->hari_terlambat }} hari.
                 @else
                     Barang sudah terlambat {{ $peminjaman->hari_terlambat }} hari dari jadwal.
-                @endif
-                @if($peminjaman->denda > 0)
-                    <br><strong>Denda: Rp {{ number_format($peminjaman->denda, 0, ',', '.') }}</strong>
                 @endif
             </div>
             @endif

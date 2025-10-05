@@ -5,7 +5,7 @@
             <th>Nama</th>
             <th>Email</th>
             <th>Role</th>
-            <th>&nbsp;</th>
+            <th>Aksi</th>
         </tr>
     </x-slot>
 

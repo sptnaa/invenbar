@@ -183,16 +183,16 @@
     <table>
         <thead>
             <tr>
-                <th width="4%">No</th>
+                <th width="3%">No</th>
                 <th width="12%">No. Transaksi</th>
                 <th width="15%">Peminjam</th>
-                <th width="20%">Barang</th>
-                <th width="8%">Jumlah</th>
-                <th width="10%">Tgl. Pinjam</th>
-                <th width="10%">Tgl. Kembali</th>
+                <th width="18%">Barang</th>
+                <th width="7%">Jumlah</th>
+                <th width="9%">Tgl. Pinjam</th>
+                <th width="9%">Tgl. Kembali</th>
                 <th width="8%">Durasi</th>
-                <th width="10%">Status</th>
-                <th width="3%">Denda</th>
+                <th width="9%">Status</th>
+                <th width="10%">Kondisi</th>
             </tr>
         </thead>
         <tbody>
@@ -226,9 +226,9 @@
                     @endif
                 </td>
                 <td class="text-center">
-                    {{ $peminjaman->durasi_peminjaman }} hari
+                    {{ $peminjaman->durasi_peminjaman }}
                     @if($peminjaman->hari_terlambat > 0)
-                        <br><small style="color: red;">+{{ $peminjaman->hari_terlambat }}</small>
+                        <br><small style="color: red;">+{{ $peminjaman->hari_terlambat }} hari</small>
                     @endif
                 </td>
                 <td class="text-center">
@@ -245,11 +245,7 @@
                     </span>
                 </td>
                 <td class="text-center">
-                    @if($peminjaman->denda > 0)
-                        Rp {{ number_format($peminjaman->denda, 0, ',', '.') }}
-                    @else
-                        -
-                    @endif
+                    {{ $peminjaman->kondisi_barang ?? '-' }}
                 </td>
             </tr>
             @empty
@@ -258,16 +254,6 @@
             </tr>
             @endforelse
         </tbody>
-        @if(count($peminjamans) > 0)
-        <tfoot>
-            <tr style="background-color: #f8f9fa; font-weight: bold;">
-                <td colspan="9" class="text-center">Total Denda</td>
-                <td class="text-center">
-                    Rp {{ number_format($peminjamans->sum('denda'), 0, ',', '.') }}
-                </td>
-            </tr>
-        </tfoot>
-        @endif
     </table>
 
     <!-- Additional Information -->

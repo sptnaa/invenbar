@@ -1,4 +1,4 @@
-<div class="row">
+<div class="row mb-4">
     <div class="col">
         @can('manage peminjaman')
             <a href="{{ route('peminjaman.create') }}" class="btn btn-primary">
@@ -27,12 +27,12 @@
             </select>
             
             <button type="submit" class="btn btn-primary">
-                <i class="fas fa-search"></i>
+                <i class="fas fa-search"></i> Cari
             </button>
             
             @if(request('search') || request('status'))
                 <a href="{{ route('peminjaman.index') }}" class="btn btn-secondary">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-times"></i> Reset
                 </a>
             @endif
         </form>

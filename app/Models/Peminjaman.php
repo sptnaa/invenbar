@@ -20,14 +20,13 @@ class Peminjaman extends Model
         'tanggal_kembali_aktual',
         'status',
         'keperluan',
-        'keterangan',
-        'denda'
+        'kondisi_barang'
     ];
 
     protected $casts = [
-        'tanggal_pinjam' => 'date',
-        'tanggal_kembali_rencana' => 'date',
-        'tanggal_kembali_aktual' => 'date',
+        'tanggal_pinjam' => 'datetime',
+        'tanggal_kembali_rencana' => 'datetime',
+        'tanggal_kembali_aktual' => 'datetime',
     ];
 
     public function barang(): BelongsTo
@@ -41,19 +40,27 @@ class Peminjaman extends Model
         $lastTransaction = self::whereDate('created_at', Carbon::today())
             ->orderBy('id', 'desc')
             ->first();
-        
+
         $sequence = $lastTransaction ? intval(substr($lastTransaction->nomor_transaksi, -3)) + 1 : 1;
-        
+
         return 'TXN-' . Carbon::now()->format('Ymd') . '-' . str_pad($sequence, 3, '0', STR_PAD_LEFT);
     }
 
     // Hitung durasi peminjaman
     public function getDurasiPeminjamanAttribute()
     {
-        if ($this->tanggal_kembali_aktual) {
-            return $this->tanggal_pinjam->diffInDays($this->tanggal_kembali_aktual) + 1;
-        }
-        return $this->tanggal_pinjam->diffInDays(Carbon::now()) + 1;
+        $endDate = $this->tanggal_kembali_aktual ?: Carbon::now();
+        $diff = $this->tanggal_pinjam->diff($endDate);
+
+        $parts = [];
+
+        if ($diff->y > 0) $parts[] = $diff->y . ' tahun';
+        if ($diff->m > 0) $parts[] = $diff->m . ' bulan';
+        if ($diff->d > 0) $parts[] = $diff->d . ' hari';
+        if ($diff->h > 0) $parts[] = $diff->h . ' jam';
+        if ($diff->i > 0) $parts[] = $diff->i . ' menit';
+
+        return implode(' ', $parts) ?: '0 menit';
     }
 
     // Check apakah terlambat
@@ -62,6 +69,7 @@ class Peminjaman extends Model
         if ($this->status === 'Sudah Dikembalikan') {
             return false;
         }
+
         return Carbon::now()->greaterThan($this->tanggal_kembali_rencana);
     }
 
@@ -71,7 +79,7 @@ class Peminjaman extends Model
         if (!$this->terlambat) {
             return 0;
         }
-        
+
         $tanggalKembali = $this->tanggal_kembali_aktual ?: Carbon::now();
         return max(0, $this->tanggal_kembali_rencana->diffInDays($tanggalKembali));
     }
@@ -89,16 +97,34 @@ class Peminjaman extends Model
         $this->save();
     }
 
-    // Scope untuk mendapatkan peminjaman yang terlambat
     public function scopeTerlambat($query)
     {
         return $query->where('tanggal_kembali_rencana', '<', Carbon::now())
-                    ->whereNull('tanggal_kembali_aktual');
+            ->whereNull('tanggal_kembali_aktual');
     }
 
-    // Scope untuk peminjaman aktif
     public function scopeAktif($query)
     {
         return $query->whereNull('tanggal_kembali_aktual');
+    }
+
+    public function getTerlambatDetailAttribute()
+    {
+        if (!$this->terlambat) {
+            return null;
+        }
+
+        $tanggalKembali = $this->tanggal_kembali_aktual ?: Carbon::now();
+        $diff = $this->tanggal_kembali_rencana->diff($tanggalKembali);
+
+        $parts = [];
+
+        if ($diff->y > 0) $parts[] = $diff->y . ' tahun';
+        if ($diff->m > 0) $parts[] = $diff->m . ' bulan';
+        if ($diff->d > 0) $parts[] = $diff->d . ' hari';
+        if ($diff->h > 0) $parts[] = $diff->h . ' jam';
+        if ($diff->i > 0) $parts[] = $diff->i . ' menit';
+
+        return implode(' ', $parts);
     }
 }

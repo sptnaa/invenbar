@@ -5,7 +5,7 @@
             <th>Nama Lokasi</th>
             <th>Total Jumlah</th>
             @can('manage lokasi')
-                <th>&nbsp;</th>
+                <th>Aksi</th>
             @endcan
         </tr>
     </x-slot>

@@ -13,6 +13,10 @@
             <td>{{ $barang->lokasi->nama_lokasi }}</td>
         </tr>
         <tr>
+            <th>Stok Tersedia</th>
+            <td><strong>{{ $barang->stok_tersedia }}</strong> {{ $barang->satuan }}</td>
+        </tr>
+        <tr>
             <th>Total Jumlah</th>
             <td>{{ $barang->jumlah }} {{ $barang->satuan }}</td>
         </tr>
@@ -44,7 +48,7 @@
 
 <!-- Tambahkan Breakdown Kondisi -->
 <div class="mt-4">
-    <h6 class="text-primary mb-3">📊 Detail Kondisi Barang</h6>
+    <h6 class="text-primary mb-3">ðŸ“Š Detail Kondisi Barang</h6>
     <div class="row">
         <div class="col-md-4 mb-3">
             <div class="card border-success">

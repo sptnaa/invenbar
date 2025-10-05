@@ -25,7 +25,6 @@ Route::middleware('auth')->group(function () {
 
     // Dashboard
     Route::get('/barang/laporan', [BarangController::class, 'cetakLaporan'])->name('barang.laporan');
-    Route::resource('barang', BarangController::class);
     
     // User
     Route::resource('user', UserController::class);
