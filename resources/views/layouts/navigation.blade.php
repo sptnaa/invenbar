@@ -19,9 +19,10 @@
                 $navs = [
                 ['route' => 'dashboard', 'name' => 'Dashboard'],
                 ['route' => 'barang.index', 'name' => 'Barang'],
-                ['route' => 'lokasi.index', 'name' => 'Lokasi'],
                 ['route' => 'kategori.index', 'name' => 'Kategori'],
                 ['route' => 'peminjaman.index', 'name' => 'Peminjaman'],
+                ['route' => 'perbaikan.index', 'name' => 'Perbaikan'],
+                ['route' => 'lokasi.index', 'name' => 'Lokasi', 'role' => 'admin'],
                 ['route' => 'user.index', 'name' => 'User', 'role' => 'admin'],
                 ];
                 @endphp

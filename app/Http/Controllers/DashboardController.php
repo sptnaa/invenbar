@@ -68,9 +68,9 @@ class DashboardController extends Controller
             ->count();
 
         // Statistik kondisi barang
-        $kondisiBaik        = Barang::where('kondisi', 'Baik')->count();
-        $kondisiRusakRingan = Barang::where('kondisi', 'Rusak Ringan')->count();
-        $kondisiRusakBerat  = Barang::where('kondisi', 'Rusak Berat')->count();
+        $kondisiBaik        = Barang::sum('jumlah_baik');
+        $kondisiRusakRingan = Barang::sum('jumlah_rusak_ringan');
+        $kondisiRusakBerat  = Barang::sum('jumlah_rusak_berat');
 
         // Data chart peminjaman & pengembalian (6 bulan terakhir)
         $chartData = [];

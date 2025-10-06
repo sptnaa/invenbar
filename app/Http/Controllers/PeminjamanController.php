@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Peminjaman;
 use App\Models\Barang;
+use App\Models\Perbaikan;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -20,9 +21,6 @@ class PeminjamanController extends Controller implements HasMiddleware
         ];
     }
 
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $search = $request->search;
@@ -44,17 +42,12 @@ class PeminjamanController extends Controller implements HasMiddleware
             ->paginate()
             ->withQueryString();
 
-        // Update status untuk peminjaman yang terlambat
         $this->updateOverdueLoans();
-
         $statusOptions = ['Sedang Dipinjam', 'Sudah Dikembalikan', 'Terlambat'];
 
         return view('peminjaman.index', compact('peminjamans', 'statusOptions'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         $peminjaman = new Peminjaman();
@@ -65,9 +58,6 @@ class PeminjamanController extends Controller implements HasMiddleware
         return view('peminjaman.create', compact('peminjaman', 'barangs'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -89,16 +79,12 @@ class PeminjamanController extends Controller implements HasMiddleware
         }
 
         $validated['nomor_transaksi'] = Peminjaman::generateNomorTransaksi();
-
         $peminjaman = Peminjaman::create($validated);
 
         return redirect()->route('peminjaman.index')
             ->with('success', 'Peminjaman berhasil ditambahkan dengan nomor transaksi: ' . $peminjaman->nomor_transaksi);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Peminjaman $peminjaman)
     {
         $peminjaman->load(['barang', 'barang.kategori', 'barang.lokasi']);
@@ -107,9 +93,6 @@ class PeminjamanController extends Controller implements HasMiddleware
         return view('peminjaman.show', compact('peminjaman'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Peminjaman $peminjaman)
     {
         $barangs = Barang::with(['kategori', 'lokasi'])
@@ -119,9 +102,6 @@ class PeminjamanController extends Controller implements HasMiddleware
         return view('peminjaman.edit', compact('peminjaman', 'barangs'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Peminjaman $peminjaman)
     {
         $validated = $request->validate([
@@ -155,9 +135,6 @@ class PeminjamanController extends Controller implements HasMiddleware
             ->with('success', 'Data peminjaman berhasil diperbarui.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Peminjaman $peminjaman)
     {
         $peminjaman->delete();
@@ -166,9 +143,6 @@ class PeminjamanController extends Controller implements HasMiddleware
             ->with('success', 'Data peminjaman berhasil dihapus.');
     }
 
-    /**
-     * Proses pengembalian barang (tanpa denda)
-     */
     public function pengembalian(Request $request, Peminjaman $peminjaman)
     {
         if ($peminjaman->status === 'Sudah Dikembalikan') {
@@ -184,20 +158,44 @@ class PeminjamanController extends Controller implements HasMiddleware
         $peminjaman->kondisi_barang = $request->kondisi_barang;
         $peminjaman->save();
 
-        // Update kondisi barang jika rusak
         $barang = $peminjaman->barang;
+        
+        // Jika kondisi rusak, buat otomatis data perbaikan dan update stok
         if ($request->kondisi_barang !== 'Baik') {
-            $barang->kondisi = $request->kondisi_barang;
+            // Kurangi jumlah_baik
+            $barang->jumlah_baik = max(0, $barang->jumlah_baik - $peminjaman->jumlah_pinjam);
+            
+            // Tambahkan ke rusak sesuai tingkat
+            if ($request->kondisi_barang === 'Rusak Ringan') {
+                $barang->jumlah_rusak_ringan += $peminjaman->jumlah_pinjam;
+            } else {
+                $barang->jumlah_rusak_berat += $peminjaman->jumlah_pinjam;
+            }
+            
+            // Update kondisi dominan
+            $barang->kondisi = $barang->kondisi_dominan;
             $barang->save();
+
+            // Buat data perbaikan otomatis
+            Perbaikan::create([
+                'nomor_perbaikan' => Perbaikan::generateNomorPerbaikan(),
+                'barang_id' => $barang->id,
+                'peminjaman_id' => $peminjaman->id,
+                'jumlah_rusak' => $peminjaman->jumlah_pinjam,
+                'tingkat_kerusakan' => $request->kondisi_barang,
+                'keterangan_kerusakan' => 'Barang rusak setelah peminjaman oleh ' . $peminjaman->nama_peminjam,
+                'tanggal_masuk' => now(),
+                'status' => 'Menunggu'
+            ]);
+
+            return redirect()->route('peminjaman.index')
+                ->with('warning', 'Barang berhasil dikembalikan. PERHATIAN: Barang dikembalikan dalam kondisi ' . $request->kondisi_barang . ' dan telah otomatis masuk ke menu Perbaikan.');
         }
 
         return redirect()->route('peminjaman.index')
-            ->with('success', 'Barang berhasil dikembalikan.');
+            ->with('success', 'Barang berhasil dikembalikan dalam kondisi baik.');
     }
 
-    /**
-     * Get barang data for AJAX
-     */
     public function getBarangData(Request $request)
     {
         $barang = Barang::with(['kategori', 'lokasi'])
@@ -217,17 +215,11 @@ class PeminjamanController extends Controller implements HasMiddleware
         ]);
     }
 
-    /**
-     * Update status peminjaman yang terlambat
-     */
     private function updateOverdueLoans()
     {
         Peminjaman::terlambat()->update(['status' => 'Terlambat']);
     }
 
-    /**
-     * Laporan peminjaman (PDF)
-     */
     public function laporan()
     {
         $peminjamans = Peminjaman::with(['barang', 'barang.kategori', 'barang.lokasi'])
@@ -244,9 +236,6 @@ class PeminjamanController extends Controller implements HasMiddleware
         return $pdf->stream('laporan-peminjaman-barang.pdf');
     }
 
-    /**
-     * Data untuk dashboard (JSON)
-     */
     public function dashboardData()
     {
         $data = [

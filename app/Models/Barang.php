@@ -29,7 +29,11 @@ class Barang extends Model
         return $this->hasMany(Peminjaman::class, 'barang_id');
     }
 
-    // TAMBAHKAN KODE INI
+    public function perbaikans(): HasMany
+    {
+        return $this->hasMany(Perbaikan::class, 'barang_id');
+    }
+
     // Accessor untuk kondisi dominan
     public function getKondisiDominanAttribute()
     {
@@ -66,7 +70,6 @@ class Barang extends Model
         }
         return $kondisi;
     }
-    // AKHIR TAMBAHAN
 
     // Hitung stok tersedia (jumlah - yang sedang dipinjam)
     public function getStokTersediaAttribute()
@@ -76,6 +79,14 @@ class Barang extends Model
             ->sum('jumlah_pinjam');
         
         return $this->jumlah - $jumlahDipinjam;
+    }
+
+    // Hitung jumlah yang sedang dalam perbaikan
+    public function getJumlahDalamPerbaikanAttribute()
+    {
+        return $this->perbaikans()
+            ->belumSelesai()
+            ->sum('jumlah_rusak');
     }
 
     // Check apakah barang bisa dipinjam
@@ -94,5 +105,14 @@ class Barang extends Model
         }, '=', 0)
         ->orWhereDoesntHave('peminjamans')
         ->where('jumlah', '>=', $jumlahMin);
+    }
+
+    // Scope untuk barang yang perlu perbaikan
+    public function scopePerluPerbaikan($query)
+    {
+        return $query->where(function($q) {
+            $q->where('jumlah_rusak_ringan', '>', 0)
+              ->orWhere('jumlah_rusak_berat', '>', 0);
+        });
     }
 }
