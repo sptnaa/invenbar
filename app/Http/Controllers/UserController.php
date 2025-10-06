@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Lokasi;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -21,7 +22,7 @@ class UserController extends Controller implements HasMiddleware
     {
         $search = $request->search ? $request->search : null;
 
-        $users = User::with('roles')
+        $users = User::with(['roles', 'lokasi'])
             ->when($search, function ($query, $search) {
                 $query->where('name', 'like', '%' . $search . '%')
                     ->orWhere('email', 'like', '%' . $search . '%');
@@ -37,8 +38,9 @@ class UserController extends Controller implements HasMiddleware
     public function create()
     {
         $user = new User();
+        $lokasis = Lokasi::orderBy('nama_lokasi')->get();
 
-        return view('user.create', compact('user'));
+        return view('user.create', compact('user', 'lokasis'));
     }
 
     /**
@@ -50,6 +52,7 @@ class UserController extends Controller implements HasMiddleware
             'name' => 'required|string|max:100',
             'email' => 'required|email|max:50|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'lokasi_id' => 'nullable|exists:lokasis,id',
         ]);
 
         $validated['password'] = bcrypt($validated['password']);
@@ -61,7 +64,6 @@ class UserController extends Controller implements HasMiddleware
         return redirect()->route('user.index')
             ->with('success', 'Pengguna baru berhasil ditambahkan.');
     }
-
 
     /**
      * Display the specified resource.
@@ -76,7 +78,9 @@ class UserController extends Controller implements HasMiddleware
      */
     public function edit(User $user)
     {
-        return view('user.edit', compact('user'));
+        $lokasis = Lokasi::orderBy('nama_lokasi')->get();
+
+        return view('user.edit', compact('user', 'lokasis'));
     }
 
     /**
@@ -88,6 +92,7 @@ class UserController extends Controller implements HasMiddleware
             'name' => 'required|string|max:100',
             'email' => 'required|email|max:50|unique:users,email,' . $user->id,
             'password' => 'nullable|string|min:8|confirmed',
+            'lokasi_id' => 'nullable|exists:lokasis,id',
         ]);
 
         if ($request->password) {
@@ -101,7 +106,6 @@ class UserController extends Controller implements HasMiddleware
         return redirect()->route('user.index')
             ->with('success', 'Data pengguna berhasil diperbarui.');
     }
-
 
     /**
      * Remove the specified resource from storage.

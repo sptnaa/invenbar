@@ -6,7 +6,7 @@ use App\Models\Barang;
 use App\Models\Kategori;
 use App\Models\Lokasi;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Contracts\Cache\Store;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -21,6 +21,21 @@ class BarangController extends Controller implements HasMiddleware
             new Middleware('permission:delete barang', only: ['destroy']),
         ];
     }
+
+    /**
+     * Apply lokasi filter untuk petugas
+     */
+    private function applyLokasiFilter($query)
+    {
+        $user = Auth::user();
+        
+        if ($user->isPetugas() && $user->lokasi_id) {
+            $query->where('lokasi_id', $user->lokasi_id);
+        }
+        
+        return $query;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -32,8 +47,12 @@ class BarangController extends Controller implements HasMiddleware
             ->when($search, function ($query, $search) {
                 $query->where('nama_barang', 'like', '%' . $search . '%')
                     ->orWhere('kode_barang', 'like', '%' . $search . '%');
-            })
-            ->latest()->paginate()->withQueryString();
+            });
+
+        // Filter berdasarkan lokasi untuk petugas
+        $barangs = $this->applyLokasiFilter($barangs);
+
+        $barangs = $barangs->latest()->paginate()->withQueryString();
 
         return view('barang.index', compact('barangs'));
     }
@@ -44,7 +63,14 @@ class BarangController extends Controller implements HasMiddleware
     public function create()
     {
         $kategori = Kategori::all();
-        $lokasi = Lokasi::all();
+        
+        // Jika petugas, hanya tampilkan lokasi yang ditugaskan
+        $user = Auth::user();
+        if ($user->isPetugas() && $user->lokasi_id) {
+            $lokasi = Lokasi::where('id', $user->lokasi_id)->get();
+        } else {
+            $lokasi = Lokasi::all();
+        }
 
         $barang = new Barang();
 
@@ -69,6 +95,12 @@ class BarangController extends Controller implements HasMiddleware
             'gambar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'is_pinjaman' => 'nullable|boolean',
         ]);
+
+        // Validasi lokasi untuk petugas
+        $user = Auth::user();
+        if ($user->isPetugas() && $user->lokasi_id && $validated['lokasi_id'] != $user->lokasi_id) {
+            return back()->with('error', 'Anda hanya dapat menambahkan barang di lokasi yang ditugaskan.');
+        }
 
         // Hitung total jumlah
         $validated['jumlah'] = $validated['jumlah_baik']
@@ -100,13 +132,17 @@ class BarangController extends Controller implements HasMiddleware
             ->with('success', 'Data barang berhasil ditambahkan.');
     }
 
-
-
     /**
      * Display the specified resource.
      */
     public function show(Barang $barang)
     {
+        // Check akses lokasi untuk petugas
+        $user = Auth::user();
+        if ($user->isPetugas() && $user->lokasi_id && $barang->lokasi_id != $user->lokasi_id) {
+            abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
+        }
+
         $barang->load(['kategori', 'lokasi']);
 
         return view('barang.show', compact('barang'));
@@ -117,8 +153,20 @@ class BarangController extends Controller implements HasMiddleware
      */
     public function edit(Barang $barang)
     {
+        // Check akses lokasi untuk petugas
+        $user = Auth::user();
+        if ($user->isPetugas() && $user->lokasi_id && $barang->lokasi_id != $user->lokasi_id) {
+            abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
+        }
+
         $kategori = Kategori::all();
-        $lokasi = Lokasi::all();
+        
+        // Jika petugas, hanya tampilkan lokasi yang ditugaskan
+        if ($user->isPetugas() && $user->lokasi_id) {
+            $lokasi = Lokasi::where('id', $user->lokasi_id)->get();
+        } else {
+            $lokasi = Lokasi::all();
+        }
 
         return view('barang.edit', compact('barang', 'kategori', 'lokasi'));
     }
@@ -128,6 +176,12 @@ class BarangController extends Controller implements HasMiddleware
      */
     public function update(Request $request, Barang $barang)
     {
+        // Check akses lokasi untuk petugas
+        $user = Auth::user();
+        if ($user->isPetugas() && $user->lokasi_id && $barang->lokasi_id != $user->lokasi_id) {
+            abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
+        }
+
         $validated = $request->validate([
             'kode_barang'        => 'required|string|max:50|unique:barangs,kode_barang,' . $barang->id,
             'nama_barang'        => 'required|string|max:150',
@@ -141,6 +195,11 @@ class BarangController extends Controller implements HasMiddleware
             'gambar'             => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'is_pinjaman'        => 'nullable|boolean',
         ]);
+
+        // Validasi lokasi untuk petugas
+        if ($user->isPetugas() && $user->lokasi_id && $validated['lokasi_id'] != $user->lokasi_id) {
+            return back()->with('error', 'Anda hanya dapat memindahkan barang ke lokasi yang ditugaskan.');
+        }
 
         // Hitung total jumlah
         $validated['jumlah'] = $validated['jumlah_baik']
@@ -176,12 +235,17 @@ class BarangController extends Controller implements HasMiddleware
             ->with('success', 'Data barang berhasil diperbarui.');
     }
 
-
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(Barang $barang)
     {
+        // Check akses lokasi untuk petugas
+        $user = Auth::user();
+        if ($user->isPetugas() && $user->lokasi_id && $barang->lokasi_id != $user->lokasi_id) {
+            abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
+        }
+
         if ($barang->gambar) {
             Storage::disk('gambar-barang')->delete($barang->gambar);
         }
@@ -193,7 +257,12 @@ class BarangController extends Controller implements HasMiddleware
 
     public function cetakLaporan()
     {
-        $barangs = Barang::with(['kategori', 'lokasi'])->get();
+        $query = Barang::with(['kategori', 'lokasi']);
+        
+        // Filter berdasarkan lokasi untuk petugas
+        $query = $this->applyLokasiFilter($query);
+        
+        $barangs = $query->get();
 
         $data = [
             'title' => 'Laporan Data Barang Inventaris',

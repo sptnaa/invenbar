@@ -11,9 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('peminjamen', function (Blueprint $table) {
-            $table->date('tanggal_kembali_rencana')->nullable()->after('tanggal_pinjam');
-            $table->date('tanggal_kembali_aktual')->nullable()->after('tanggal_kembali_rencana');
+        Schema::table('users', function (Blueprint $table) {
+            $table->foreignId('lokasi_id')->nullable()->after('password')->constrained('lokasis')->onDelete('set null');
         });
     }
 
@@ -22,8 +21,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('peminjamen', function (Blueprint $table) {
-            //
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropForeign(['lokasi_id']);
+            $table->dropColumn('lokasi_id');
         });
     }
 };
