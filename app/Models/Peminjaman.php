@@ -11,7 +11,7 @@ class Peminjaman extends Model
     /**
      * Nama tabel yang digunakan model ini.
      */
-    protected $table = 'peminjaman';
+    protected $table = 'peminjamans';
 
     /**
      * Kolom yang bisa diisi massal.
@@ -67,18 +67,25 @@ class Peminjaman extends Model
      */
     public function getDurasiPeminjamanAttribute()
     {
-        $endDate = $this->tanggal_kembali_aktual ?: Carbon::now();
+        // Jika tanggal pinjam kosong, return -
+        if (!$this->tanggal_pinjam) {
+            return '-';
+        }
+
+        // Gunakan tanggal kembali rencana untuk menghitung durasi rencana,
+        // atau tanggal kembali aktual jika sudah dikembalikan
+        $endDate = $this->tanggal_kembali_rencana ?: ($this->tanggal_kembali_aktual ?: Carbon::now());
         $diff = $this->tanggal_pinjam->diff($endDate);
 
+        // Susun urutan Hari → Jam → Menit
         $parts = [];
-        if ($diff->y > 0) $parts[] = $diff->y . ' tahun';
-        if ($diff->m > 0) $parts[] = $diff->m . ' bulan';
-        if ($diff->d > 0) $parts[] = $diff->d . ' hari';
-        if ($diff->h > 0) $parts[] = $diff->h . ' jam';
-        if ($diff->i > 0) $parts[] = $diff->i . ' menit';
+        if ($diff->d > 0) $parts[] = "{$diff->d} Hari";
+        if ($diff->h > 0) $parts[] = "{$diff->h} Jam";
+        if ($diff->i > 0) $parts[] = "{$diff->i} Menit";
 
-        return implode(' ', $parts) ?: '0 menit';
+        return implode(' ', $parts) ?: '0 Menit';
     }
+
 
     /**
      * Menentukan apakah peminjaman terlambat.
@@ -99,7 +106,10 @@ class Peminjaman extends Model
         if (!$this->terlambat) return 0;
 
         $tanggalKembali = $this->tanggal_kembali_aktual ?: Carbon::now();
-        return max(0, $this->tanggal_kembali_rencana->diffInDays($tanggalKembali));
+        $diffInHours = $this->tanggal_kembali_rencana->diffInHours($tanggalKembali);
+
+        // Dibulatkan ke atas, 25 jam → 2 hari
+        return ceil($diffInHours / 24);
     }
 
     /**

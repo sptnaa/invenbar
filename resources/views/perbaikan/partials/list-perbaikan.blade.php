@@ -14,99 +14,91 @@
         </tr>
     </x-slot>
 
-    @forelse ($perbaikans as $index => $perbaikan)
-    <tr>
-        <td class="text-center align-middle">{{ $perbaikans->firstItem() + $index }}</td>
-        <td class="align-middle">
-            <strong class="text-primary">{{ $perbaikan->nomor_perbaikan }}</strong>
-            @if($perbaikan->peminjaman)
-            <br><small class="text-muted">Dari: {{ $perbaikan->peminjaman->nomor_transaksi }}</small>
-            @endif
-        </td>
-        <td class="align-middle">
-            <div>
-                <strong class="text-dark">{{ $perbaikan->barang->nama_barang }}</strong>
-                <br><small class="text-primary">{{ $perbaikan->barang->kode_barang }}</small>
-                <br><small class="badge bg-light text-dark">{{ $perbaikan->barang->kategori->nama_kategori }}</small>
-            </div>
-        </td>
-        <td class="text-center align-middle">
-            <span class="badge bg-info text-dark">
-                {{ $perbaikan->jumlah_rusak }} {{ $perbaikan->barang->satuan }}
-            </span>
-        </td>
-        <td class="text-center align-middle">
-            <span class="badge {{ $perbaikan->kerusakan_badge_class }}">
-                {{ $perbaikan->tingkat_kerusakan }}
-            </span>
-        </td>
-        <td class="text-center align-middle">
-            <span class="text-dark fw-bold">{{ $perbaikan->tanggal_masuk->format('d/m/Y') }}</span>
-            @if($perbaikan->tanggal_selesai)
-            <br><small class="badge bg-success">
-                <i class="fas fa-check me-1"></i>{{ $perbaikan->tanggal_selesai->format('d/m/Y') }}
-            </small>
-            @endif
-        </td>
-        <td class="text-center align-middle">
-            <small class="text-muted">{{ $perbaikan->durasi_perbaikan }}</small>
-        </td>
-        <td class="text-center align-middle">
-            <span class="badge rounded-pill {{ $perbaikan->status_badge_class }}">
-                {{ $perbaikan->status }}
-            </span>
-        </td>
-        <td class="text-end align-middle">
-            @if($perbaikan->biaya_perbaikan)
-                <strong>Rp {{ number_format($perbaikan->biaya_perbaikan, 0, ',', '.') }}</strong>
-            @else
-                <span class="text-muted">-</span>
-            @endif
-        </td>
-        <td class="align-middle text-center">
-            <div class="d-flex justify-content-center gap-1 mb-1">
-                @can('view peminjaman')
-                <x-tombol-aksi :href="route('perbaikan.show', $perbaikan->id)" type="show" />
-                @endcan
-
-                @if($perbaikan->status !== 'Selesai')
-                @can('manage peminjaman')
-                <x-tombol-aksi :href="route('perbaikan.edit', $perbaikan->id)" type="edit" />
-                @endcan
-                @endif
-
-                @can('delete peminjaman')
-                <x-tombol-aksi :href="route('perbaikan.destroy', $perbaikan->id)" type="delete" />
-                @endcan
-            </div>
-
-            @if($perbaikan->status !== 'Selesai')
-            @can('manage peminjaman')
-            <button type="button"
-                class="btn btn-success btn-sm w-100"
-                data-bs-toggle="modal"
-                data-bs-target="#modalProsesPerbaikan"
-                data-id="{{ $perbaikan->id }}"
-                data-nomor="{{ $perbaikan->nomor_perbaikan }}"
-                data-barang="{{ $perbaikan->barang->nama_barang }}"
-                data-status="{{ $perbaikan->status }}">
-                <i class="fas fa-cog"></i> Proses
+    @foreach ($groupedPerbaikans as $lokasi => $perbaikans)
+    {{-- HEADER GROUPING --}}
+    <tr class="table-secondary">
+        <td colspan="10" class="fw-bold">
+            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#lokasi-{{ Str::slug($lokasi) }}">
+                {{ strtoupper($lokasi) }}
             </button>
-            @endcan
-            @endif
         </td>
     </tr>
-    @empty
-    <tr>
-        <td colspan="10" class="text-center py-5">
-            <div class="text-center">
-                <i class="fas fa-tools fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">Belum ada data perbaikan</h5>
-                <p class="text-muted">Data perbaikan akan muncul di sini setelah ditambahkan</p>
-            </div>
-        </td>
-    </tr>
-    @endforelse
+
+    {{-- ISI DATA PERBAIKAN --}}
+    <tbody id="lokasi-{{ Str::slug($lokasi) }}" class="collapse show">
+        @forelse ($perbaikans as $index => $perbaikan)
+            <tr>
+                <td class="text-center align-middle">{{ $loop->iteration }}</td>
+                <td class="align-middle">
+                    <strong class="text-primary">{{ $perbaikan->nomor_perbaikan }}</strong>
+                    @if($perbaikan->peminjaman)
+                        <br><small class="text-muted">Dari: {{ $perbaikan->peminjaman->nomor_transaksi }}</small>
+                    @endif
+                </td>
+                <td class="align-middle">
+                    <strong>{{ $perbaikan->barang->nama_barang }}</strong>
+                    <br><small class="text-primary">{{ $perbaikan->barang->kode_barang }}</small>
+                    <br><small class="badge bg-light text-dark">{{ $perbaikan->barang->kategori->nama_kategori }}</small>
+                </td>
+                <td class="text-center align-middle">
+                    <span class="badge bg-info text-dark">
+                        {{ $perbaikan->jumlah_rusak }} {{ $perbaikan->barang->satuan }}
+                    </span>
+                </td>
+                <td class="text-center align-middle">
+                    <span class="badge {{ $perbaikan->kerusakan_badge_class }}">
+                        {{ $perbaikan->tingkat_kerusakan }}
+                    </span>
+                </td>
+                <td class="text-center align-middle">
+                    <span class="text-dark fw-bold">{{ $perbaikan->tanggal_masuk->format('d/m/Y') }}</span>
+                    @if($perbaikan->tanggal_selesai)
+                        <br><small class="badge bg-success">
+                            <i class="fas fa-check me-1"></i>{{ $perbaikan->tanggal_selesai->format('d/m/Y') }}
+                        </small>
+                    @endif
+                </td>
+                <td class="text-center align-middle">
+                    <small class="text-muted">{{ $perbaikan->durasi_perbaikan }}</small>
+                </td>
+                <td class="text-center align-middle">
+                    <span class="badge rounded-pill {{ $perbaikan->status_badge_class }}">
+                        {{ $perbaikan->status }}
+                    </span>
+                </td>
+                <td class="text-end align-middle">
+                    @if($perbaikan->biaya_perbaikan)
+                        <strong>Rp {{ number_format($perbaikan->biaya_perbaikan, 0, ',', '.') }}</strong>
+                    @else
+                        <span class="text-muted">-</span>
+                    @endif
+                </td>
+                <td class="text-center align-middle">
+                    <div class="d-flex justify-content-center gap-1">
+                        @can('view peminjaman')
+                            <x-tombol-aksi :href="route('perbaikan.show', $perbaikan->id)" type="show" />
+                        @endcan
+
+                        @if($perbaikan->status !== 'Selesai')
+                            @can('manage peminjaman')
+                                <x-tombol-aksi :href="route('perbaikan.edit', $perbaikan->id)" type="edit" />
+                            @endcan
+                        @endif
+
+                        @can('delete peminjaman')
+                            <x-tombol-aksi :href="route('perbaikan.destroy', $perbaikan->id)" type="delete" />
+                        @endcan
+                    </div>
+                </td>
+            </tr>
+        @empty
+            <tr>
+                <td colspan="10" class="text-center py-3 text-muted">Tidak ada data perbaikan di lokasi ini</td>
+            </tr>
+        @endforelse
+    </tbody>
+@endforeach
+
 
     <!-- Modal Proses Perbaikan -->
     <div class="modal fade" id="modalProsesPerbaikan" tabindex="-1">

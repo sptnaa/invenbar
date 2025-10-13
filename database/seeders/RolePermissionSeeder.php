@@ -47,6 +47,7 @@ class RolePermissionSeeder extends Seeder
         $petugasRole->syncPermissions([
             'manage barang',
             'view kategori',
+            'manage kategori', 
             'view lokasi',
             'view peminjaman',
             'manage peminjaman',

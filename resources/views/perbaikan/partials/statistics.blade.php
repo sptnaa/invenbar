@@ -1,9 +1,25 @@
 @php
-    $totalPerbaikan = App\Models\Perbaikan::count();
-    $menunggu = App\Models\Perbaikan::where('status', 'Menunggu')->count();
-    $dalamPerbaikan = App\Models\Perbaikan::where('status', 'Dalam Perbaikan')->count();
-    $selesai = App\Models\Perbaikan::where('status', 'Selesai')->count();
-    $totalBiaya = App\Models\Perbaikan::where('status', 'Selesai')->sum('biaya_perbaikan');
+    use Illuminate\Support\Facades\Auth;
+    use App\Models\Perbaikan;
+
+    $user = Auth::user();
+
+    // Query dasar
+    $query = Perbaikan::query()->with('barang.lokasi');
+
+    // Jika role petugas, filter sesuai lokasi
+    if ($user->hasRole('petugas') && $user->lokasi_id) {
+        $query->whereHas('barang', function ($q) use ($user) {
+            $q->where('lokasi_id', $user->lokasi_id);
+        });
+    }
+
+    // Hitung statistik sesuai hasil filter
+    $totalPerbaikan = (clone $query)->count();
+    $menunggu = (clone $query)->where('status', 'Menunggu')->count();
+    $dalamPerbaikan = (clone $query)->where('status', 'Dalam Perbaikan')->count();
+    $selesai = (clone $query)->where('status', 'Selesai')->count();
+    $totalBiaya = (clone $query)->where('status', 'Selesai')->sum('biaya_perbaikan');
 @endphp
 
 <div class="row mb-4">

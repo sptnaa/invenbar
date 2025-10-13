@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Perbaikan;
 use App\Models\Barang;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -21,30 +22,31 @@ class PerbaikanController extends Controller implements HasMiddleware
     }
 
     public function index(Request $request)
-    {
-        $search = $request->search;
-        $status = $request->status;
-        $tingkat = $request->tingkat_kerusakan;
+{
+    $user = Auth::user();
 
-        $perbaikans = Perbaikan::with(['barang', 'barang.kategori', 'peminjaman'])
-            ->when($search, function ($query, $search) {
-                $query->where('nomor_perbaikan', 'like', "%$search%")
-                    ->orWhereHas('barang', function ($q) use ($search) {
-                        $q->where('nama_barang', 'like', "%$search%")
-                          ->orWhere('kode_barang', 'like', "%$search%");
-                    });
-            })
-            ->when($status, fn($q) => $q->where('status', $status))
-            ->when($tingkat, fn($q) => $q->where('tingkat_kerusakan', $tingkat))
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
+    $statusOptions = ['Menunggu', 'Sedang Diperbaiki', 'Selesai'];
+    $tingkatOptions = ['Ringan', 'Sedang', 'Berat'];
 
-        $statusOptions = ['Menunggu', 'Dalam Perbaikan', 'Selesai'];
-        $tingkatOptions = ['Rusak Ringan', 'Rusak Berat'];
+    $query = Perbaikan::with(['barang.kategori', 'barang.lokasi', 'peminjaman'])
+        ->orderBy('created_at', 'desc');
 
-        return view('perbaikan.index', compact('perbaikans', 'statusOptions', 'tingkatOptions'));
+    if ($user->hasRole('Teknisi')) {
+        $query->whereHas('barang.lokasi', function ($q) use ($user) {
+            $q->where('id', $user->lokasi_id);
+        });
     }
+
+    $perbaikans = $query->get();
+
+    // === GROUPING PER LOKASI ===
+    $groupedPerbaikans = $perbaikans->groupBy(function ($item) {
+        return optional($item->barang->lokasi)->nama_lokasi ?? 'Lokasi Tidak Diketahui';
+    });
+
+    return view('perbaikan.index', compact('groupedPerbaikans', 'statusOptions', 'tingkatOptions'));
+}
+
 
     public function create()
     {
@@ -52,7 +54,7 @@ class PerbaikanController extends Controller implements HasMiddleware
         $barangs = Barang::with(['kategori', 'lokasi'])
             ->where(function ($q) {
                 $q->where('jumlah_rusak_ringan', '>', 0)
-                  ->orWhere('jumlah_rusak_berat', '>', 0);
+                    ->orWhere('jumlah_rusak_berat', '>', 0);
             })
             ->get();
 
@@ -160,20 +162,27 @@ class PerbaikanController extends Controller implements HasMiddleware
             ->with('success', 'Data perbaikan berhasil dihapus dan stok dikembalikan.');
     }
 
-    public function laporan()
+    public function Laporan()
     {
-        $perbaikans = Perbaikan::with(['barang', 'barang.kategori', 'peminjaman'])
-            ->latest()
-            ->get();
+        $user = Auth::user();
+
+        $query = Perbaikan::with(['barang.lokasi']);
+
+        // Filter lokasi untuk petugas
+        if ($user->isPetugas() && $user->lokasi_id) {
+            $query->whereHas('barang', fn($q) => $q->where('lokasi_id', $user->lokasi_id));
+        }
+
+        $perbaikans = $query->get();
 
         $data = [
             'title' => 'Laporan Data Perbaikan Barang',
-            'date' => now()->format('d F Y'),
-            'perbaikans' => $perbaikans
+            'date' => date('d F Y'),
+            'perbaikans' => $perbaikans,
         ];
 
         $pdf = Pdf::loadView('perbaikan.laporan', $data);
-        return $pdf->stream('laporan-perbaikan-barang.pdf');
+        return $pdf->stream('laporan-perbaikan.pdf');
     }
 
     public function prosesPerbaikan(Request $request, Perbaikan $perbaikan)
@@ -185,7 +194,7 @@ class PerbaikanController extends Controller implements HasMiddleware
         $validated = $request->validate([
             'status' => 'required|in:Dalam Perbaikan,Selesai',
             'catatan_perbaikan' => 'nullable|string|max:1000',
-            'biaya_perbaikan' => 'nullable|numeric|min:0',
+            'biaya_perbaikan' => 'required|numeric|min:1',
         ]);
 
         $barang = $perbaikan->barang;

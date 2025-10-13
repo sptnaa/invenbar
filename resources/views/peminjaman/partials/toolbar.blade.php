@@ -2,12 +2,12 @@
     <div class="col">
         @can('manage peminjaman')
             <a href="{{ route('peminjaman.create') }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Tambah Peminjaman
+                <i class="bi bi-plus-square"></i> Tambah Peminjaman
             </a>
         @endcan
         
         <a href="{{ route('peminjaman.laporan') }}" class="btn btn-success" target="_blank">
-            <i class="fas fa-print"></i> Cetak Laporan
+            <i class="bi bi-printer"></i> Cetak Laporan Peminjaman
         </a>
     </div>
 

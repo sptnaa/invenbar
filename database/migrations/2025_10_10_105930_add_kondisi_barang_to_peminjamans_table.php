@@ -11,10 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('peminjamen', function (Blueprint $table) {
+        // Tambah kolom kondisi_barang ke tabel peminjamans (plural)
+        Schema::table('peminjamans', function (Blueprint $table) {
             $table->enum('kondisi_barang', ['Baik', 'Rusak Ringan', 'Rusak Berat'])
                   ->nullable()
-                  ->after('status'); 
+                  ->after('status')
+                  ->comment('Kondisi barang saat dikembalikan');
         });
     }
 
@@ -23,7 +25,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('peminjamen', function (Blueprint $table) {
+        Schema::table('peminjamans', function (Blueprint $table) {
             $table->dropColumn('kondisi_barang');
         });
     }

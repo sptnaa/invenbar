@@ -7,7 +7,7 @@
         </div>
         @include('perbaikan.partials.list-perbaikan')
         <div class="card-body">
-            {{ $perbaikans->links() }}
+            {{-- Pagination dihapus karena grouping lokasi --}}
         </div>
     </div>
 </x-main-layout>

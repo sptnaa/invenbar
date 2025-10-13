@@ -3,8 +3,8 @@
         <tr>
             <th width="4%">#</th>
             <th width="12%">No. Peminjaman</th>
-            <th width="18%">Peminjam</th>
-            <th width="20%">Barang</th>
+            <th width="18%">Peminjam<br><small class="text-muted">Email & Telepon</small></th>
+            <th width="20%">Barang<br><small class="text-muted">Kode & Kategori</small></th>
             <th width="8%">Jumlah</th>
             <th width="10%">Tgl. Pinjam</th>
             <th width="10%">Tgl. Kembali</th>
@@ -13,125 +13,79 @@
         </tr>
     </x-slot>
 
-    @forelse ($peminjamans as $index => $peminjaman)
-    <tr>
-        <td class="text-center align-middle">{{ $peminjamans->firstItem() + $index }}</td>
-        <td class="align-middle">
-            <strong class="text-primary">{{ $peminjaman->nomor_transaksi }}</strong>
-        </td>
-        <td class="align-middle">
-            <div>
-                <strong class="text-dark">{{ $peminjaman->nama_peminjam }}</strong>
-                @if($peminjaman->email_peminjam)
-                <br><small class="text-muted"><i class="fas fa-envelope me-1"></i>{{ $peminjaman->email_peminjam }}</small>
-                @endif
-                @if($peminjaman->telepon_peminjam)
-                <br><small class="text-muted"><i class="fas fa-phone me-1"></i>{{ $peminjaman->telepon_peminjam }}</small>
-                @endif
-            </div>
-        </td>
-        <td class="align-middle">
-            <div>
-                <strong class="text-dark">{{ $peminjaman->barang->nama_barang }}</strong>
-                <br><small class="text-primary">{{ $peminjaman->barang->kode_barang }}</small>
-                <br><small class="badge bg-light text-dark">{{ $peminjaman->barang->kategori->nama_kategori }}</small>
-            </div>
-        </td>
-        <td class="text-center align-middle">
-            <span class="badge bg-info text-dark">
-                {{ $peminjaman->jumlah_pinjam }} {{ $peminjaman->barang->satuan }}
-            </span>
-        </td>
-        <td class="text-center align-middle">
-            <div>
-                <span class="text-dark fw-bold">{{ $peminjaman->tanggal_pinjam->format('d/m/Y') }}</span>
-                <br>
-                <small class="text-muted">{{ $peminjaman->tanggal_pinjam->format('H:i') }}</small>
-            </div>
-        </td>
-        <td class="text-center align-middle">
-            <div>
-                <span class="text-dark fw-bold">{{ $peminjaman->tanggal_kembali_rencana->format('d/m/Y') }}</span>
-                <br>
-                <small class="text-muted">{{ $peminjaman->tanggal_kembali_rencana->format('H:i') }}</small>
+    @php
+        // Kelompokkan peminjaman berdasarkan nama lokasi barang
+        $grouped = $peminjamans->groupBy(fn($item) => $item->barang->lokasi->nama_lokasi ?? 'Tidak Ada Lokasi');
+    @endphp
 
-                @if($peminjaman->tanggal_kembali_aktual)
-                <br><small class="badge bg-success">
-                    <i class="fas fa-check me-1"></i>{{ $peminjaman->tanggal_kembali_aktual->format('d/m/Y H:i') }}
-                </small>
-                @endif
-            </div>
-        </td>
-
-        <td class="text-center align-middle">
-            @php
-            $status = $peminjaman->status;
-            $badgeClass = match ($status) {
-            'Sedang Dipinjam' => 'bg-warning text-dark',
-            'Sudah Dikembalikan' => 'bg-success text-white',
-            'Terlambat' => 'bg-danger text-white',
-            default => 'bg-secondary text-white',
-            };
-            @endphp
-
-            <span class="badge rounded-pill {{ $badgeClass }}">
-                {{ $status }}
-            </span>
-
-            @if($status === 'Terlambat' && $peminjaman->hari_terlambat > 0)
-            <br>
-            <small class="text-danger fw-bold">
-                <i class="fas fa-clock me-1"></i>{{ $peminjaman->hari_terlambat }} hari
-            </small>
-            @endif
-        </td>
-        <td class="align-middle text-center">
-            <div class="d-flex justify-content-center gap-1 mb-1">
-                @can('view peminjaman')
-                <x-tombol-aksi :href="route('peminjaman.show', $peminjaman->id)" type="show" />
-                @endcan
-
-                @if($peminjaman->status !== 'Sudah Dikembalikan')
-                @can('manage peminjaman')
-                <x-tombol-aksi :href="route('peminjaman.edit', $peminjaman->id)" type="edit" />
-                @endcan
-                @endif
-
-                @can('delete peminjaman')
-                <x-tombol-aksi :href="route('peminjaman.destroy', $peminjaman->id)" type="delete" />
-                @endcan
-            </div>
-
-            @if($peminjaman->status !== 'Sudah Dikembalikan')
-            @can('manage peminjaman')
-            <form action="{{ route('peminjaman.pengembalian', $peminjaman->id) }}"
-                method="POST" class="d-inline w-100">
-                @csrf
-                @method('PATCH')
-                <button type="button"
-                    class="btn btn-success btn-sm w-100"
-                    data-bs-toggle="modal"
-                    data-bs-target="#modalPengembalian"
-                    data-url="{{ route('peminjaman.pengembalian', $peminjaman->id) }}">
-                    <i class="fas fa-undo"></i> Kembalikan
+    @foreach ($grouped as $lokasi => $items)
+        <tr class="table-light">
+            <td colspan="9">
+                <button class="btn btn-sm btn-outline-primary"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#lokasi{{ Str::slug($lokasi) }}">
+                    <i class="fas fa-map-marker-alt"></i> {{ strtoupper($lokasi) }}
                 </button>
+            </td>
+        </tr>
 
-            </form>
-            @endcan
-            @endif
-        </td>
-    </tr>
-    @empty
-    <tr>
-        <td colspan="9" class="text-center py-5">
-            <div class="text-center">
-                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">Belum ada data peminjaman</h5>
-                <p class="text-muted">Data peminjaman akan muncul di sini setelah ditambahkan</p>
-            </div>
-        </td>
-    </tr>
-    @endforelse
+        <tbody id="lokasi{{ Str::slug($lokasi) }}" class="collapse show">
+            @foreach ($items as $index => $peminjaman)
+                <tr>
+                    <td class="text-center align-middle">{{ $loop->iteration }}</td>
+                    <td class="align-middle">
+                        <strong class="text-primary">{{ $peminjaman->nomor_transaksi }}</strong>
+                    </td>
+
+                    <!-- Kolom Peminjam -->
+                    <td class="align-middle">
+                        <strong>{{ $peminjaman->nama_peminjam }}</strong><br>
+                        <small class="text-muted">{{ $peminjaman->email_peminjam }}</small><br>
+                        <small class="text-muted">{{ $peminjaman->telepon_peminjam ?? '-' }}</small>
+                    </td>
+
+                    <!-- Kolom Barang -->
+                    <td class="align-middle">
+                        @if ($peminjaman->barang)
+                            <strong>{{ $peminjaman->barang->nama_barang }}</strong><br>
+                            <small>{{ $peminjaman->barang->kode_barang }}</small><br>
+                            <small class="text-muted">
+                                {{ $peminjaman->barang->kategori->nama_kategori ?? '-' }}
+                            </small>
+                        @else
+                            <em class="text-muted">Barang tidak ditemukan</em>
+                        @endif
+                    </td>
+
+                    <td class="text-center align-middle">{{ $peminjaman->jumlah_pinjam }}</td>
+                    <td class="text-center align-middle">{{ $peminjaman->tanggal_pinjam_formatted }}</td>
+                    <td class="text-center align-middle">{{ $peminjaman->tanggal_kembali_rencana_formatted }}</td>
+
+                    <!-- Status -->
+                    <td class="text-center align-middle">
+                        @if ($peminjaman->status === 'Sudah Dikembalikan')
+                            <span class="badge bg-success">Dikembalikan</span>
+                        @elseif ($peminjaman->status === 'Terlambat')
+                            <span class="badge bg-danger">Terlambat</span>
+                        @else
+                            <span class="badge bg-warning text-dark">Sedang Dipinjam</span>
+                        @endif
+                    </td>
+
+                    <!-- Tombol Aksi -->
+                    <td class="text-center align-middle">
+                        <x-tombol-aksi :href="route('peminjaman.show', $peminjaman->id)" type="show" />
+
+                        @if ($peminjaman->status !== 'Sudah Dikembalikan')
+                            <x-tombol-aksi :href="route('peminjaman.edit', $peminjaman->id)" type="edit" />
+                        @endif
+
+                        <x-tombol-aksi :href="route('peminjaman.destroy', $peminjaman->id)" type="delete" />
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    @endforeach
 
     <!-- Modal Pengembalian -->
     <div class="modal fade" id="modalPengembalian" tabindex="-1">
@@ -139,7 +93,7 @@
             <div class="modal-content">
                 <form id="formPengembalian" method="POST">
                     @csrf
-                    @method('PATCH') {{-- karena route kamu pakai PATCH --}}
+                    @method('PATCH') {{-- route pakai PATCH --}}
 
                     <div class="modal-header">
                         <h5 class="modal-title">Kembalikan Barang</h5>
@@ -149,7 +103,8 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="kondisi_barang" class="form-label">Kondisi Setelah Dipinjam</label>
-                            <select name="kondisi_barang" id="kondisi_barang" class="form-control" required>
+                            <select name="kondisi_barang" id="kondisi_barang" class="form-select" required>
+                                <option value="" disabled selected>Pilih Kondisi</option>
                                 <option value="Baik">Baik</option>
                                 <option value="Rusak Ringan">Rusak Ringan</option>
                                 <option value="Rusak Berat">Rusak Berat</option>
@@ -177,5 +132,4 @@
             });
         });
     </script>
-
 </x-table-list>

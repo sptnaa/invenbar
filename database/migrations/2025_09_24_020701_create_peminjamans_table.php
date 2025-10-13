@@ -19,9 +19,9 @@ return new class extends Migration
             $table->string('telepon_peminjam', 20)->nullable();
             $table->foreignId('barang_id')->constrained('barangs')->onDelete('cascade');
             $table->integer('jumlah_pinjam');
-            $table->date('tanggal_pinjam');
-            $table->date('tanggal_kembali_rencana');
-            $table->date('tanggal_kembali_aktual')->nullable();
+            $table->dateTime('tanggal_pinjam');
+            $table->dateTime('tanggal_kembali_rencana');
+            $table->dateTime('tanggal_kembali_aktual')->nullable();
             $table->enum('status', ['Sedang Dipinjam', 'Sudah Dikembalikan', 'Terlambat'])->default('Sedang Dipinjam');
             $table->text('keperluan')->nullable();
             $table->text('keterangan')->nullable();

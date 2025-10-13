@@ -77,7 +77,7 @@ class Barang extends Model
         $jumlahDipinjam = $this->peminjamans()
             ->aktif()
             ->sum('jumlah_pinjam');
-        
+
         return $this->jumlah - $jumlahDipinjam;
     }
 
@@ -98,21 +98,37 @@ class Barang extends Model
     // Scope untuk barang yang tersedia untuk dipinjam
     public function scopeTersedia($query, $jumlahMin = 1)
     {
-        return $query->whereHas('peminjamans', function($q) use ($jumlahMin) {
+        return $query->whereHas('peminjamans', function ($q) use ($jumlahMin) {
             $q->selectRaw('barang_id, COALESCE(SUM(CASE WHEN tanggal_kembali_aktual IS NULL THEN jumlah_pinjam ELSE 0 END), 0) as total_dipinjam')
-              ->groupBy('barang_id')
-              ->havingRaw('(barangs.jumlah - total_dipinjam) >= ?', [$jumlahMin]);
+                ->groupBy('barang_id')
+                ->havingRaw('(barangs.jumlah - total_dipinjam) >= ?', [$jumlahMin]);
         }, '=', 0)
-        ->orWhereDoesntHave('peminjamans')
-        ->where('jumlah', '>=', $jumlahMin);
+            ->orWhereDoesntHave('peminjamans')
+            ->where('jumlah', '>=', $jumlahMin);
     }
 
     // Scope untuk barang yang perlu perbaikan
     public function scopePerluPerbaikan($query)
     {
-        return $query->where(function($q) {
+        return $query->where(function ($q) {
             $q->where('jumlah_rusak_ringan', '>', 0)
-              ->orWhere('jumlah_rusak_berat', '>', 0);
+                ->orWhere('jumlah_rusak_berat', '>', 0);
         });
+    }
+
+    // Cek apakah barang sedang dipinjam
+    public function getSedangDipinjamAttribute()
+    {
+        return $this->peminjamans()
+            ->aktif()
+            ->exists();
+    }
+
+    // Cek apakah barang sedang dalam perbaikan
+    public function getSedangDiperbaikiAttribute()
+    {
+        return $this->perbaikans()
+            ->belumSelesai()
+            ->exists();
     }
 }

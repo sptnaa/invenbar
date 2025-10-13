@@ -6,9 +6,11 @@ use App\Models\Peminjaman;
 use App\Models\Barang;
 use App\Models\Perbaikan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 
 class PeminjamanController extends Controller implements HasMiddleware
 {
@@ -23,40 +25,79 @@ class PeminjamanController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $search = $request->search;
-        $status = $request->status;
+        $query = Peminjaman::with(['barang.lokasi', 'barang.kategori']);
+        $user = Auth::user();
 
-        $peminjamans = Peminjaman::with(['barang', 'barang.kategori', 'barang.lokasi'])
-            ->when($search, function ($query, $search) {
-                $query->where('nama_peminjam', 'like', '%' . $search . '%')
-                    ->orWhere('nomor_transaksi', 'like', '%' . $search . '%')
-                    ->orWhereHas('barang', function ($q) use ($search) {
-                        $q->where('nama_barang', 'like', '%' . $search . '%')
-                          ->orWhere('kode_barang', 'like', '%' . $search . '%');
-                    });
-            })
-            ->when($status, function ($query, $status) {
-                $query->where('status', $status);
-            })
-            ->latest()
-            ->paginate()
-            ->withQueryString();
+        //  Jika role petugas, hanya tampilkan data dari lokasi petugas
+        if ($user->hasRole('petugas') && $user->lokasi_id) {
+            $query->whereHas('barang', function ($q) use ($user) {
+                $q->where('lokasi_id', $user->lokasi_id);
+            });
+        }
 
-        $this->updateOverdueLoans();
-        $statusOptions = ['Sedang Dipinjam', 'Sudah Dikembalikan', 'Terlambat'];
+        // Pencarian
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('nama_peminjam', 'like', '%' . $request->search . '%')
+                    ->orWhere('nomor_transaksi', 'like', '%' . $request->search . '%');
+            });
+        }
 
-        return view('peminjaman.index', compact('peminjamans', 'statusOptions'));
+        // Ambil data paginasi
+        $peminjamans = $query->orderByDesc('created_at')->paginate(10);
+
+        // Hitung statistik sesuai role
+        if ($user->hasRole('petugas') && $user->lokasi_id) {
+            // Statistik hanya untuk lokasi petugas
+            $baseQuery = Peminjaman::whereHas('barang', function ($q) use ($user) {
+                $q->where('lokasi_id', $user->lokasi_id);
+            });
+        } else {
+            // Admin: semua data
+            $baseQuery = Peminjaman::query();
+        }
+
+        $total = (clone $baseQuery)->count();
+        $sedangDipinjam = (clone $baseQuery)->where('status', 'Sedang Dipinjam')->count();
+        $terlambat = (clone $baseQuery)->where('status', 'Terlambat')->count();
+        $sudahDikembalikan = (clone $baseQuery)->where('status', 'Sudah Dikembalikan')->count();
+
+
+        // Status dropdown di tampilan
+        $statusOptions = ['Dipinjam', 'Dikembalikan', 'Terlambat'];
+
+        return view('peminjaman.index', compact(
+            'peminjamans',
+            'statusOptions',
+            'total',
+            'sedangDipinjam',
+            'sudahDikembalikan',
+            'terlambat'
+        ));
     }
+
 
     public function create()
     {
         $peminjaman = new Peminjaman();
-        $barangs = Barang::with(['kategori', 'lokasi'])
-            ->where('is_pinjaman', true)
-            ->get();
+        $user = Auth::user();
+
+        // Jika user punya role admin, tampilkan semua barang
+        if ($user->hasRole('admin')) {
+            $barangs = Barang::with(['kategori', 'lokasi'])
+                ->where('is_pinjaman', true)
+                ->get();
+        } else {
+            // Jika user petugas, tampilkan hanya barang dari lokasi user
+            $barangs = Barang::with(['kategori', 'lokasi'])
+                ->where('is_pinjaman', true)
+                ->where('lokasi_id', $user->lokasi_id)
+                ->get();
+        }
 
         return view('peminjaman.create', compact('peminjaman', 'barangs'));
     }
+
 
     public function store(Request $request)
     {
@@ -66,7 +107,7 @@ class PeminjamanController extends Controller implements HasMiddleware
             'telepon_peminjam' => 'nullable|string|max:20',
             'barang_id' => 'required|exists:barangs,id',
             'jumlah_pinjam' => 'required|integer|min:1',
-            'tanggal_pinjam' => 'required|date|after_or_equal:today',
+            'tanggal_pinjam' => 'required|date',
             'tanggal_kembali_rencana' => 'required|date|after:tanggal_pinjam',
             'keperluan' => 'nullable|string|max:500',
         ]);
@@ -110,12 +151,13 @@ class PeminjamanController extends Controller implements HasMiddleware
             'telepon_peminjam' => 'nullable|string|max:20',
             'barang_id' => 'required|exists:barangs,id',
             'jumlah_pinjam' => 'required|integer|min:1',
-            'tanggal_pinjam' => 'required|date|after_or_equal:today',
+            'tanggal_pinjam' => 'required|date',
             'tanggal_kembali_rencana' => 'required|date|after:tanggal_pinjam',
             'keperluan' => 'nullable|string|max:500',
         ]);
 
-        if ($peminjaman->barang_id != $validated['barang_id'] ||
+        if (
+            $peminjaman->barang_id != $validated['barang_id'] ||
             $peminjaman->jumlah_pinjam != $validated['jumlah_pinjam']
         ) {
             $barang = Barang::findOrFail($validated['barang_id']);
@@ -153,48 +195,44 @@ class PeminjamanController extends Controller implements HasMiddleware
             'kondisi_barang' => 'required|in:Baik,Rusak Ringan,Rusak Berat',
         ]);
 
-        $peminjaman->tanggal_kembali_aktual = now();
-        $peminjaman->status = 'Sudah Dikembalikan';
-        $peminjaman->kondisi_barang = $request->kondisi_barang;
-        $peminjaman->save();
+        // Update status peminjaman
+        $peminjaman->update([
+            'tanggal_kembali_aktual' => now(),
+            'status' => 'Sudah Dikembalikan',
+            'kondisi_barang' => $request->kondisi_barang,
+        ]);
 
         $barang = $peminjaman->barang;
-        
-        // Jika kondisi rusak, buat otomatis data perbaikan dan update stok
+
+        // Update stok sesuai kondisi
         if ($request->kondisi_barang !== 'Baik') {
-            // Kurangi jumlah_baik
+            // Kurangi stok baik
             $barang->jumlah_baik = max(0, $barang->jumlah_baik - $peminjaman->jumlah_pinjam);
-            
-            // Tambahkan ke rusak sesuai tingkat
+
+            // Tambah stok rusak sesuai kondisi
             if ($request->kondisi_barang === 'Rusak Ringan') {
                 $barang->jumlah_rusak_ringan += $peminjaman->jumlah_pinjam;
             } else {
                 $barang->jumlah_rusak_berat += $peminjaman->jumlah_pinjam;
             }
-            
-            // Update kondisi dominan
+
             $barang->kondisi = $barang->kondisi_dominan;
             $barang->save();
 
-            // Buat data perbaikan otomatis
-            Perbaikan::create([
-                'nomor_perbaikan' => Perbaikan::generateNomorPerbaikan(),
-                'barang_id' => $barang->id,
-                'peminjaman_id' => $peminjaman->id,
-                'jumlah_rusak' => $peminjaman->jumlah_pinjam,
-                'tingkat_kerusakan' => $request->kondisi_barang,
-                'keterangan_kerusakan' => 'Barang rusak setelah peminjaman oleh ' . $peminjaman->nama_peminjam,
-                'tanggal_masuk' => now(),
-                'status' => 'Menunggu'
+            // Tandai bahwa barang butuh perbaikan (tanpa buat entri di tabel perbaikan)
+            $peminjaman->update([
+                'butuh_perbaikan' => true,
             ]);
 
             return redirect()->route('peminjaman.index')
-                ->with('warning', 'Barang berhasil dikembalikan. PERHATIAN: Barang dikembalikan dalam kondisi ' . $request->kondisi_barang . ' dan telah otomatis masuk ke menu Perbaikan.');
+                ->with('warning', 'Barang berhasil dikembalikan dengan kondisi ' . $request->kondisi_barang . '. Barang ini memerlukan perbaikan, silakan tambahkan secara manual di menu Perbaikan.');
         }
 
         return redirect()->route('peminjaman.index')
             ->with('success', 'Barang berhasil dikembalikan dalam kondisi baik.');
     }
+
+
 
     public function getBarangData(Request $request)
     {
@@ -217,23 +255,38 @@ class PeminjamanController extends Controller implements HasMiddleware
 
     private function updateOverdueLoans()
     {
-        Peminjaman::terlambat()->update(['status' => 'Terlambat']);
+        // Ambil semua peminjaman yang masih sedang dipinjam
+        $peminjamans = Peminjaman::where('status', 'Sedang Dipinjam')->get();
+
+        foreach ($peminjamans as $peminjaman) {
+            // Jika waktu sekarang lebih besar dari tanggal kembali rencana
+            if (Carbon::now()->gt(Carbon::parse($peminjaman->tanggal_kembali_rencana))) {
+                $peminjaman->update(['status' => 'Terlambat']);
+            }
+        }
     }
 
-    public function laporan()
+    public function Laporan()
     {
-        $peminjamans = Peminjaman::with(['barang', 'barang.kategori', 'barang.lokasi'])
-            ->latest()
-            ->get();
+        $user = Auth::user();
+
+        $query = Peminjaman::with(['barang.lokasi']);
+
+        // Filter lokasi untuk petugas
+        if ($user->isPetugas() && $user->lokasi_id) {
+            $query->whereHas('barang', fn($q) => $q->where('lokasi_id', $user->lokasi_id));
+        }
+
+        $peminjamans = $query->get();
 
         $data = [
             'title' => 'Laporan Data Peminjaman Barang',
             'date' => date('d F Y'),
-            'peminjamans' => $peminjamans
+            'peminjamans' => $peminjamans,
         ];
 
         $pdf = Pdf::loadView('peminjaman.laporan', $data);
-        return $pdf->stream('laporan-peminjaman-barang.pdf');
+        return $pdf->stream('laporan-peminjaman.pdf');
     }
 
     public function dashboardData()

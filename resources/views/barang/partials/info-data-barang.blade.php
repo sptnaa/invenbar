@@ -24,13 +24,13 @@
             <th>Kondisi Umum</th>
             <td>
                 @php
-                    $badgeClass = 'bg-success';
-                    if ($barang->kondisi == 'Rusak Ringan') {
-                        $badgeClass = 'bg-warning text-dark';
-                    }
-                    if ($barang->kondisi == 'Rusak Berat') {
-                        $badgeClass = 'bg-danger';
-                    }
+                $badgeClass = 'bg-success';
+                if ($barang->kondisi == 'Rusak Ringan') {
+                $badgeClass = 'bg-warning text-dark';
+                }
+                if ($barang->kondisi == 'Rusak Berat') {
+                $badgeClass = 'bg-danger';
+                }
                 @endphp
                 <span class="badge {{ $badgeClass }}">{{ $barang->kondisi }}</span>
             </td>
@@ -43,12 +43,25 @@
             <th>Terakhir Diperbarui</th>
             <td>{{ $barang->updated_at->translatedFormat('d F Y, H:i') }}</td>
         </tr>
+        <tr>
+            <th>Status Barang</th>
+            <td>
+                @if ($barang->sedang_dipinjam)
+                <span class="badge bg-warning text-dark">Sedang Dipinjam</span>
+                @elseif ($barang->sedang_diperbaiki)
+                <span class="badge bg-danger text-white">Dalam Perbaikan</span>
+                @else
+                <span class="badge bg-success">Tersedia</span>
+                @endif
+            </td>
+        </tr>
+
     </tbody>
 </table>
 
 <!-- Tambahkan Breakdown Kondisi -->
 <div class="mt-4">
-    <h6 class="text-primary mb-3">ðŸ“Š Detail Kondisi Barang</h6>
+    <h6 class="text-primary mb-3">Detail Kondisi Barang</h6>
     <div class="row">
         <div class="col-md-4 mb-3">
             <div class="card border-success">

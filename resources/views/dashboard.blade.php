@@ -18,7 +18,7 @@
         <div class="col-lg-6 mb-4">
             <div class="card shadow">
                 <div class="card-header py-3">
-                    <h6> 5Barang Terakhir Ditambahkan</h6>
+                    <h6>Barang Terakhir Ditambahkan</h6>
                 </div>
 
                 <div class="card-body table-responsive">
