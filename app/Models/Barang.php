@@ -12,8 +12,12 @@ class Barang extends Model
 
     protected $casts = [
         'tanggal_pengadaan' => 'date',
+        'is_pinjaman' => 'boolean',
     ];
 
+    // ==========================
+    // 🔹 RELASI
+    // ==========================
     public function kategori(): BelongsTo
     {
         return $this->belongsTo(Kategori::class, 'kategori_id');
@@ -34,22 +38,31 @@ class Barang extends Model
         return $this->hasMany(Perbaikan::class, 'barang_id');
     }
 
-    // Accessor untuk kondisi dominan
+    // ==========================
+    // 🔹 KONDISI DOMINAN
+    // ==========================
     public function getKondisiDominanAttribute()
     {
-        if ($this->jumlah_baik >= $this->jumlah_rusak_ringan && $this->jumlah_baik >= $this->jumlah_rusak_berat) {
+        $baik = $this->jumlah_baik ?? 0;
+        $ringan = $this->jumlah_rusak_ringan ?? 0;
+        $berat = $this->jumlah_rusak_berat ?? 0;
+
+        if ($baik >= $ringan && $baik >= $berat) {
             return 'Baik';
-        } elseif ($this->jumlah_rusak_ringan >= $this->jumlah_rusak_berat) {
+        } elseif ($ringan >= $berat) {
             return 'Rusak Ringan';
         } else {
             return 'Rusak Berat';
         }
     }
 
-    // Method untuk mendapatkan array kondisi untuk badge
+    // ==========================
+    // 🔹 KONDISI UNTUK BADGE
+    // ==========================
     public function getKondisiArrayAttribute()
     {
         $kondisi = [];
+
         if ($this->jumlah_baik > 0) {
             $kondisi[] = [
                 'label' => "Baik ({$this->jumlah_baik})",
@@ -58,30 +71,37 @@ class Barang extends Model
         }
         if ($this->jumlah_rusak_ringan > 0) {
             $kondisi[] = [
-                'label' => "R.Ringan ({$this->jumlah_rusak_ringan})",
+                'label' => "R. Ringan ({$this->jumlah_rusak_ringan})",
                 'class' => 'condition-rusak-ringan'
             ];
         }
         if ($this->jumlah_rusak_berat > 0) {
             $kondisi[] = [
-                'label' => "R.Berat ({$this->jumlah_rusak_berat})",
+                'label' => "R. Berat ({$this->jumlah_rusak_berat})",
                 'class' => 'condition-rusak-berat'
             ];
         }
+
         return $kondisi;
     }
 
-    // Hitung stok tersedia (jumlah - yang sedang dipinjam)
+    // ==========================
+    // 🔹 STOK & PERBAIKAN
+    // ==========================
+    public function getJumlahAttribute()
+    {
+        return ($this->jumlah_baik ?? 0) + ($this->jumlah_rusak_ringan ?? 0) + ($this->jumlah_rusak_berat ?? 0);
+    }
+
     public function getStokTersediaAttribute()
     {
         $jumlahDipinjam = $this->peminjamans()
             ->aktif()
             ->sum('jumlah_pinjam');
 
-        return $this->jumlah - $jumlahDipinjam;
+        return $this->jumlah_baik - $jumlahDipinjam;
     }
 
-    // Hitung jumlah yang sedang dalam perbaikan
     public function getJumlahDalamPerbaikanAttribute()
     {
         return $this->perbaikans()
@@ -89,46 +109,38 @@ class Barang extends Model
             ->sum('jumlah_rusak');
     }
 
-    // Check apakah barang bisa dipinjam
+    // ==========================
+    // 🔹 STATUS PINJAM & PERBAIKAN
+    // ==========================
     public function canBeBorrowed($jumlahPinjam = 1)
     {
-        return $this->stok_tersedia >= $jumlahPinjam;
+        return $this->is_pinjaman && $this->stok_tersedia >= $jumlahPinjam;
     }
 
-    // Scope untuk barang yang tersedia untuk dipinjam
+    public function getSedangDipinjamAttribute()
+    {
+        return $this->peminjamans()->aktif()->exists();
+    }
+
+    public function getSedangDiperbaikiAttribute()
+    {
+        return $this->perbaikans()->belumSelesai()->exists();
+    }
+
+    // ==========================
+    // 🔹 SCOPE
+    // ==========================
     public function scopeTersedia($query, $jumlahMin = 1)
     {
-        return $query->whereHas('peminjamans', function ($q) use ($jumlahMin) {
-            $q->selectRaw('barang_id, COALESCE(SUM(CASE WHEN tanggal_kembali_aktual IS NULL THEN jumlah_pinjam ELSE 0 END), 0) as total_dipinjam')
-                ->groupBy('barang_id')
-                ->havingRaw('(barangs.jumlah - total_dipinjam) >= ?', [$jumlahMin]);
-        }, '=', 0)
-            ->orWhereDoesntHave('peminjamans')
-            ->where('jumlah', '>=', $jumlahMin);
+        return $query->whereRaw('(jumlah_baik - (SELECT COALESCE(SUM(jumlah_pinjam),0) FROM peminjamans WHERE peminjamans.barang_id = barangs.id AND tanggal_kembali_aktual IS NULL)) >= ?', [$jumlahMin])
+            ->where('is_pinjaman', true);
     }
 
-    // Scope untuk barang yang perlu perbaikan
     public function scopePerluPerbaikan($query)
     {
         return $query->where(function ($q) {
             $q->where('jumlah_rusak_ringan', '>', 0)
-                ->orWhere('jumlah_rusak_berat', '>', 0);
+              ->orWhere('jumlah_rusak_berat', '>', 0);
         });
-    }
-
-    // Cek apakah barang sedang dipinjam
-    public function getSedangDipinjamAttribute()
-    {
-        return $this->peminjamans()
-            ->aktif()
-            ->exists();
-    }
-
-    // Cek apakah barang sedang dalam perbaikan
-    public function getSedangDiperbaikiAttribute()
-    {
-        return $this->perbaikans()
-            ->belumSelesai()
-            ->exists();
     }
 }

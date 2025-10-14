@@ -1,114 +1,111 @@
-<style>
-    .condition-badges {
-        position: absolute;
-        top: 15px;
-        right: 15px;
-        z-index: 10;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .condition-badge {
-        background: rgba(255, 255, 255, 0.95);
-        border: 1px solid #dee2e6;
-        border-radius: 12px;
-        padding: 4px 8px;
-        font-size: 10px;
-        font-weight: 600;
-        text-align: center;
-        min-width: 50px;
-        backdrop-filter: blur(10px);
-    }
-
-    .condition-baik {
-        color: #28a745;
-        border-color: #28a745;
-    }
-
-    .condition-rusak-ringan {
-        color: #ffc107;
-        border-color: #ffc107;
-    }
-
-    .condition-rusak-berat {
-        color: #dc3545;
-        border-color: #dc3545;
-    }
-
-    .card-hover {
-        transition: all 0.3s ease;
-    }
-
-    .card-hover:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-    }
-</style>
-
 <div class="card-body p-0">
-    <div class="row p-4">
-        @forelse ($barangs as $barang)
-        <div class="col-lg-4 col-md-6 mb-4">
-            <div class="card h-100 position-relative card-hover">
-                <div class="condition-badges">
-                    @foreach($barang->kondisi_array as $kondisi)
-                    <div class="condition-badge {{ $kondisi['class'] }}">
-                        {{ $kondisi['label'] }}
-                    </div>
-                    @endforeach
-                </div>
-                @if ($barang->sedang_dipinjam)
-                <div class="condition-badge bg-warning text-dark position-absolute bottom-0 start-0 m-2 px-2 py-1 rounded">
-                    Barang sedang dipinjam
-                </div>
-                @endif
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th width="4%">#</th>
+                    <th width="12%">Kode Barang</th>
+                    <th width="20%">Nama Barang</th>
+                    <th width="15%">Kategori</th>
+                    <th width="10%">Jumlah</th>
+                    <th width="10%">Kondisi</th>
+                    <th width="10%">Status</th>
+                    <th width="10%">Sumber</th>
+                    <th width="10%" class="text-center">Aksi</th>
+                </tr>
+            </thead>
 
-                @if ($barang->sedang_diperbaiki)
-                <div class="condition-badge bg-danger text-white position-absolute bottom-0 start-0 m-2 px-2 py-1 rounded">
-                    Barang dalam perbaikan
-                </div>
-                @endif
+            <tbody>
+                @forelse ($grouped as $lokasiNama => $barangGroup)
+                {{-- Tombol Lokasi --}}
+                <tr class="bg-light">
+                    <td colspan="9">
+                        <button class="btn btn-sm btn-outline-primary fw-normal lokasi-toggle"
+                            data-lokasi="{{ Str::slug($lokasiNama) }}">
+                            {{ strtoupper($lokasiNama) }}
+                        </button>
+                    </td>
+                </tr>
 
-                <div class="card-header bg-light">
-                    <span class="badge bg-primary mb-2">{{ $barang->kode_barang }}</span>
-                    <h5 class="card-title mb-0">{{ $barang->nama_barang }}</h5>
-                </div>
-
-                <div class="card-body">
-                    <div class="mb-2">
-                        <small class="text-muted d-block">KATEGORI</small>
-                        <strong>{{ $barang->kategori->nama_kategori }}</strong>
-                    </div>
-                    <div class="mb-2">
-                        <small class="text-muted d-block">LOKASI</small>
-                        <strong>{{ $barang->lokasi->nama_lokasi }}</strong>
-                    </div>
-                    <div class="mb-2">
-                        <small class="text-muted d-block">TOTAL</small>
-                        <strong>{{ $barang->stok_tersedia }} {{ $barang->satuan }}</strong>
-                    </div>
-                </div>
-
-                <div class="card-footer bg-white border-top d-flex justify-content-end gap-1">
-                    @can('manage barang')
-                    <x-tombol-aksi href="{{ route('barang.show', $barang->id) }}" type="show" />
-                    <x-tombol-aksi href="{{ route('barang.edit', $barang->id) }}" type="edit" />
-                    @endcan
-
-                    @can('delete barang')
-                    <x-tombol-aksi href="{{ route('barang.destroy', $barang->id) }}" type="delete" />
-                    @endcan
-                </div>
-            </div>
-        </div>
-        @empty
-        <div class="col-12">
-            <div class="alert alert-info text-center">
-                <h5>📦 Data barang belum tersedia</h5>
-                <p class="mb-0">Silakan tambahkan barang baru untuk memulai.</p>
-            </div>
-        </div>
-        @endforelse
+                {{-- Daftar Barang per Lokasi --}}
+            <tbody id="lokasi-{{ Str::slug($lokasiNama) }}" class="lokasi-row">
+                @foreach ($barangGroup as $barang)
+                <tr>
+                    <td>{{ $loop->iteration }}</td>
+                    <td><strong>{{ $barang->kode_barang }}</strong></td>
+                    <td>{{ $barang->nama_barang }}</td>
+                    <td>{{ $barang->kategori->nama_kategori ?? '-' }}</td>
+                    <td>{{ $barang->stok_tersedia }} {{ $barang->satuan }}</td>
+                    <td>
+                        @foreach($barang->kondisi_array as $kondisi)
+                        <span class="badge 
+                                            @if($kondisi['class'] == 'condition-baik') bg-success 
+                                            @elseif($kondisi['class'] == 'condition-rusak-ringan') bg-warning text-dark
+                                            @elseif($kondisi['class'] == 'condition-rusak-berat') bg-danger
+                                            @endif">
+                            {{ $kondisi['label'] }}
+                        </span>
+                        @endforeach
+                    </td>
+                    <td>
+                        @if ($barang->sedang_dipinjam)
+                        <span class="badge bg-warning text-dark">Dipinjam</span>
+                        @elseif ($barang->sedang_diperbaiki)
+                        <span class="badge bg-danger">Diperbaiki</span>
+                        @else
+                        <span class="badge bg-success">Tersedia</span>
+                        @endif
+                    </td>
+                    <td>{{ $barang->sumber ?? '-' }}</td>
+                    <td class="text-center">
+                        <div class="d-flex justify-content-center align-items-center gap-1">
+                            @can('manage barang')
+                            <x-tombol-aksi href="{{ route('barang.show', $barang->id) }}" type="show" />
+                            <x-tombol-aksi href="{{ route('barang.edit', $barang->id) }}" type="edit" />
+                            @endcan
+                            @can('delete barang')
+                            <x-tombol-aksi href="{{ route('barang.destroy', $barang->id) }}" type="delete" />
+                            @endcan
+                        </div>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+            @empty
+            <tr>
+                <td colspan="9" class="text-center text-muted py-4">
+                    Belum ada data barang. Silakan tambahkan barang baru.
+                </td>
+            </tr>
+            @endforelse
+            </tbody>
+        </table>
     </div>
 </div>
+
+{{-- Script untuk toggle lokasi --}}
+<script>
+    document.querySelectorAll('.lokasi-toggle').forEach(button => {
+        button.addEventListener('click', () => {
+            const lokasiId = button.dataset.lokasi;
+            const target = document.getElementById('lokasi-' + lokasiId);
+            target.classList.toggle('d-none');
+        });
+    });
+
+    // Default: semua lokasi disembunyikan
+    document.querySelectorAll('.lokasi-row').forEach(row => row.classList.add('d-none'));
+</script>
+
+{{-- Tambahkan style agar tabel tidak ada garis --}}
+<style>
+    .table,
+    .table th,
+    .table td {
+        border: none !important;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: #f9fafb;
+    }
+</style>

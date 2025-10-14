@@ -73,23 +73,38 @@
                         <span class="text-muted">-</span>
                     @endif
                 </td>
-                <td class="text-center align-middle">
-                    <div class="d-flex justify-content-center gap-1">
-                        @can('view peminjaman')
-                            <x-tombol-aksi :href="route('perbaikan.show', $perbaikan->id)" type="show" />
-                        @endcan
+                <td class="align-middle text-center">
+            <div class="d-flex justify-content-center gap-1 mb-1">
+                @can('view peminjaman')
+                <x-tombol-aksi :href="route('perbaikan.show', $perbaikan->id)" type="show" />
+                @endcan
 
-                        @if($perbaikan->status !== 'Selesai')
-                            @can('manage peminjaman')
-                                <x-tombol-aksi :href="route('perbaikan.edit', $perbaikan->id)" type="edit" />
-                            @endcan
-                        @endif
+                @if($perbaikan->status !== 'Selesai')
+                @can('manage peminjaman')
+                <x-tombol-aksi :href="route('perbaikan.edit', $perbaikan->id)" type="edit" />
+                @endcan
+                @endif
 
-                        @can('delete peminjaman')
-                            <x-tombol-aksi :href="route('perbaikan.destroy', $perbaikan->id)" type="delete" />
-                        @endcan
-                    </div>
-                </td>
+                @can('delete peminjaman')
+                <x-tombol-aksi :href="route('perbaikan.destroy', $perbaikan->id)" type="delete" />
+                @endcan
+            </div>
+
+            @if($perbaikan->status !== 'Selesai')
+            @can('manage peminjaman')
+            <button type="button"
+                class="btn btn-success btn-sm w-100"
+                data-bs-toggle="modal"
+                data-bs-target="#modalProsesPerbaikan"
+                data-id="{{ $perbaikan->id }}"
+                data-nomor="{{ $perbaikan->nomor_perbaikan }}"
+                data-barang="{{ $perbaikan->barang->nama_barang }}"
+                data-status="{{ $perbaikan->status }}">
+                <i class="fas fa-cog"></i> Proses
+            </button>
+            @endcan
+            @endif
+        </td>
             </tr>
         @empty
             <tr>

@@ -28,11 +28,9 @@ class BarangController extends Controller implements HasMiddleware
     private function applyLokasiFilter($query)
     {
         $user = Auth::user();
-        
         if ($user->isPetugas() && $user->lokasi_id) {
             $query->where('lokasi_id', $user->lokasi_id);
         }
-        
         return $query;
     }
 
@@ -47,15 +45,19 @@ class BarangController extends Controller implements HasMiddleware
             ->when($search, function ($query, $search) {
                 $query->where('nama_barang', 'like', '%' . $search . '%')
                     ->orWhere('kode_barang', 'like', '%' . $search . '%');
-            });
+            })
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
 
-        // Filter berdasarkan lokasi untuk petugas
-        $barangs = $this->applyLokasiFilter($barangs);
+        // Group data berdasarkan nama lokasi
+        $grouped = $barangs->getCollection()->groupBy(function ($item) {
+            return $item->lokasi->nama_lokasi ?? 'Tanpa Lokasi';
+        });
 
-        $barangs = $barangs->latest()->paginate()->withQueryString();
-
-        return view('barang.index', compact('barangs'));
+        return view('barang.index', compact('barangs', 'grouped'));
     }
+
 
     /**
      * Show the form for creating a new resource.
@@ -63,8 +65,7 @@ class BarangController extends Controller implements HasMiddleware
     public function create()
     {
         $kategori = Kategori::all();
-        
-        // Jika petugas, hanya tampilkan lokasi yang ditugaskan
+
         $user = Auth::user();
         if ($user->isPetugas() && $user->lokasi_id) {
             $lokasi = Lokasi::where('id', $user->lokasi_id)->get();
@@ -92,11 +93,11 @@ class BarangController extends Controller implements HasMiddleware
             'jumlah_rusak_berat' => 'required|integer|min:0',
             'satuan' => 'required|string|max:20',
             'tanggal_pengadaan' => 'required|date',
+            'sumber' => 'nullable|string|max:100',
             'gambar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'is_pinjaman' => 'nullable|boolean',
         ]);
 
-        // Validasi lokasi untuk petugas
         $user = Auth::user();
         if ($user->isPetugas() && $user->lokasi_id && $validated['lokasi_id'] != $user->lokasi_id) {
             return back()->with('error', 'Anda hanya dapat menambahkan barang di lokasi yang ditugaskan.');
@@ -107,7 +108,7 @@ class BarangController extends Controller implements HasMiddleware
             + $validated['jumlah_rusak_ringan']
             + $validated['jumlah_rusak_berat'];
 
-        // Set kondisi dominan
+        // Tentukan kondisi dominan
         if (
             $validated['jumlah_baik'] >= $validated['jumlah_rusak_ringan']
             && $validated['jumlah_baik'] >= $validated['jumlah_rusak_berat']
@@ -119,7 +120,6 @@ class BarangController extends Controller implements HasMiddleware
             $validated['kondisi'] = 'Rusak Berat';
         }
 
-        // Checkbox "barang bisa dipinjam"
         $validated['is_pinjaman'] = $request->has('is_pinjaman');
 
         if ($request->hasFile('gambar')) {
@@ -137,14 +137,12 @@ class BarangController extends Controller implements HasMiddleware
      */
     public function show(Barang $barang)
     {
-        // Check akses lokasi untuk petugas
         $user = Auth::user();
         if ($user->isPetugas() && $user->lokasi_id && $barang->lokasi_id != $user->lokasi_id) {
             abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
         }
 
         $barang->load(['kategori', 'lokasi']);
-
         return view('barang.show', compact('barang'));
     }
 
@@ -153,15 +151,12 @@ class BarangController extends Controller implements HasMiddleware
      */
     public function edit(Barang $barang)
     {
-        // Check akses lokasi untuk petugas
         $user = Auth::user();
         if ($user->isPetugas() && $user->lokasi_id && $barang->lokasi_id != $user->lokasi_id) {
             abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
         }
 
         $kategori = Kategori::all();
-        
-        // Jika petugas, hanya tampilkan lokasi yang ditugaskan
         if ($user->isPetugas() && $user->lokasi_id) {
             $lokasi = Lokasi::where('id', $user->lokasi_id)->get();
         } else {
@@ -176,37 +171,34 @@ class BarangController extends Controller implements HasMiddleware
      */
     public function update(Request $request, Barang $barang)
     {
-        // Check akses lokasi untuk petugas
         $user = Auth::user();
         if ($user->isPetugas() && $user->lokasi_id && $barang->lokasi_id != $user->lokasi_id) {
             abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
         }
 
         $validated = $request->validate([
-            'kode_barang'        => 'required|string|max:50|unique:barangs,kode_barang,' . $barang->id,
-            'nama_barang'        => 'required|string|max:150',
-            'kategori_id'        => 'required|exists:kategoris,id',
-            'lokasi_id'          => 'required|exists:lokasis,id',
-            'jumlah_baik'        => 'required|integer|min:0',
+            'kode_barang' => 'required|string|max:50|unique:barangs,kode_barang,' . $barang->id,
+            'nama_barang' => 'required|string|max:150',
+            'kategori_id' => 'required|exists:kategoris,id',
+            'lokasi_id' => 'required|exists:lokasis,id',
+            'jumlah_baik' => 'required|integer|min:0',
             'jumlah_rusak_ringan' => 'required|integer|min:0',
             'jumlah_rusak_berat' => 'required|integer|min:0',
-            'satuan'             => 'required|string|max:20',
-            'tanggal_pengadaan'  => 'required|date',
-            'gambar'             => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'is_pinjaman'        => 'nullable|boolean',
+            'satuan' => 'required|string|max:20',
+            'tanggal_pengadaan' => 'required|date',
+            'sumber' => 'nullable|string|max:100',
+            'gambar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'is_pinjaman' => 'nullable|boolean',
         ]);
 
-        // Validasi lokasi untuk petugas
         if ($user->isPetugas() && $user->lokasi_id && $validated['lokasi_id'] != $user->lokasi_id) {
             return back()->with('error', 'Anda hanya dapat memindahkan barang ke lokasi yang ditugaskan.');
         }
 
-        // Hitung total jumlah
         $validated['jumlah'] = $validated['jumlah_baik']
             + $validated['jumlah_rusak_ringan']
             + $validated['jumlah_rusak_berat'];
 
-        // Set kondisi dominan
         if (
             $validated['jumlah_baik'] >= $validated['jumlah_rusak_ringan']
             && $validated['jumlah_baik'] >= $validated['jumlah_rusak_berat']
@@ -218,14 +210,12 @@ class BarangController extends Controller implements HasMiddleware
             $validated['kondisi'] = 'Rusak Berat';
         }
 
-        // Checkbox "barang bisa dipinjam"
         $validated['is_pinjaman'] = $request->has('is_pinjaman');
 
         if ($request->hasFile('gambar')) {
             if ($barang->gambar) {
                 Storage::disk('gambar-barang')->delete($barang->gambar);
             }
-
             $validated['gambar'] = $request->file('gambar')->store(null, 'gambar-barang');
         }
 
@@ -240,7 +230,6 @@ class BarangController extends Controller implements HasMiddleware
      */
     public function destroy(Barang $barang)
     {
-        // Check akses lokasi untuk petugas
         $user = Auth::user();
         if ($user->isPetugas() && $user->lokasi_id && $barang->lokasi_id != $user->lokasi_id) {
             abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
@@ -255,13 +244,13 @@ class BarangController extends Controller implements HasMiddleware
         return redirect()->route('barang.index')->with('success', 'Data barang berhasil dihapus.');
     }
 
+    /**
+     * Cetak laporan barang (PDF)
+     */
     public function cetakLaporan()
     {
         $query = Barang::with(['kategori', 'lokasi']);
-        
-        // Filter berdasarkan lokasi untuk petugas
         $query = $this->applyLokasiFilter($query);
-        
         $barangs = $query->get();
 
         $data = [
@@ -271,7 +260,6 @@ class BarangController extends Controller implements HasMiddleware
         ];
 
         $pdf = Pdf::loadView('barang.laporan', $data);
-
         return $pdf->stream('laporan-inventaris-barang.pdf');
     }
 }

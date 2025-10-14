@@ -33,6 +33,23 @@
     </div>
 </div>
 
+<!-- ✅ Field tambahan: Sumber -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <x-form-select 
+            label="Sumber"
+            name="sumber"
+            :value="$barang->sumber"
+            :option-data="[
+                ['id' => 'Pemerintah', 'nama' => 'Pemerintah'],
+                ['id' => 'Swadaya', 'nama' => 'Swadaya'],
+                ['id' => 'Mitra', 'nama' => 'Mitra'],
+            ]"
+            option-label="nama"
+            option-value="id"
+        />
+    </div>
+</div>
 <!-- Detail Kondisi Barang -->
 <div class="card mb-3" style="border: 1px solid #dee2e6;">
     <div class="card-header bg-light">
@@ -115,7 +132,7 @@
             });
             totalDisplay.textContent = total;
 
-            // Add animation effect
+            // Animasi efek total
             totalDisplay.style.transform = 'scale(1.1)';
             setTimeout(() => {
                 totalDisplay.style.transform = 'scale(1)';

@@ -36,6 +36,10 @@
             </td>
         </tr>
         <tr>
+            <th>Sumber</th>
+            <td>{{ $barang->sumber ?? '-' }}</td>
+        </tr>
+        <tr>
             <th>Tanggal Pengadaan</th>
             <td>{{ \Carbon\Carbon::parse($barang->tanggal_pengadaan)->translatedFormat('d F Y') }}</td>
         </tr>
