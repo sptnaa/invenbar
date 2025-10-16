@@ -78,26 +78,28 @@ class PeminjamanController extends Controller implements HasMiddleware
 
 
     public function create()
-    {
-        $peminjaman = new Peminjaman();
-        $user = Auth::user();
+{
+    $peminjaman = new Peminjaman();
+    $user = Auth::user();
 
-        // Jika user punya role admin, tampilkan semua barang
-        if ($user->hasRole('admin')) {
-            $barangs = Barang::with(['kategori', 'lokasi'])
-                ->where('is_pinjaman', true)
-                ->get();
-        } else {
-            // Jika user petugas, tampilkan hanya barang dari lokasi user
-            $barangs = Barang::with(['kategori', 'lokasi'])
-                ->where('is_pinjaman', true)
-                ->where('lokasi_id', $user->lokasi_id)
-                ->get();
-        }
+    // Base query barang yang bisa dipinjam
+    $barangQuery = Barang::with(['kategori', 'lokasi', 'childUnits'])
+        ->where('is_pinjaman', true);
 
-        return view('peminjaman.create', compact('peminjaman', 'barangs'));
+    // Jika user adalah petugas, tampilkan hanya barang di lokasi-nya
+    if ($user->hasRole('petugas') && $user->lokasi_id) {
+        $barangQuery->where('lokasi_id', $user->lokasi_id);
     }
 
+    // Ambil semua barang
+    $barangs = $barangQuery->get();
+
+    // Pisahkan barang berdasarkan mode input
+    $barangsMasal = $barangs->where('mode_input', 'masal');
+    $barangsParentUnit = $barangs->where('mode_input', 'unit')->whereNull('kode_dasar');
+
+    return view('peminjaman.create', compact('peminjaman', 'barangs', 'barangsMasal', 'barangsParentUnit'));
+}
 
     public function store(Request $request)
     {

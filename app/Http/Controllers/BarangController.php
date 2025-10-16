@@ -7,6 +7,7 @@ use App\Models\Kategori;
 use App\Models\Lokasi;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -22,9 +23,6 @@ class BarangController extends Controller implements HasMiddleware
         ];
     }
 
-    /**
-     * Apply lokasi filter untuk petugas
-     */
     private function applyLokasiFilter($query)
     {
         $user = Auth::user();
@@ -34,34 +32,46 @@ class BarangController extends Controller implements HasMiddleware
         return $query;
     }
 
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $search = $request->search;
 
-        $barangs = Barang::with(['kategori', 'lokasi'])
-            ->when($search, function ($query, $search) {
-                $query->where('nama_barang', 'like', '%' . $search . '%')
-                    ->orWhere('kode_barang', 'like', '%' . $search . '%');
-            })
-            ->latest()
+        // Query untuk mengambil hanya parent barang
+        $query = Barang::with(['kategori', 'lokasi'])
+            ->where(function ($q) {
+                // Mode masal
+                $q->where('mode_input', 'masal')
+                    // Atau mode unit yang merupakan parent (kode_dasar = kode_barang atau masih null)
+                    ->orWhere(function ($subQ) {
+                        $subQ->where('mode_input', 'unit')
+                            ->where(function ($nested) {
+                                $nested->whereColumn('kode_barang', 'kode_dasar')
+                                    ->orWhereNull('kode_dasar');
+                            });
+                    });
+            });
+
+        // Tambahkan child units untuk barang mode unit
+        $query->with(['childUnits' => function ($q) {
+            $q->with(['kategori', 'lokasi']);
+        }]);
+
+        // Jika ada pencarian
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('kode_barang', 'like', "%{$search}%")
+                    ->orWhere('nama_barang', 'like', "%{$search}%");
+            });
+        }
+
+        $barangs = $query->latest()
             ->paginate(10)
             ->withQueryString();
 
-        // Group data berdasarkan nama lokasi
-        $grouped = $barangs->getCollection()->groupBy(function ($item) {
-            return $item->lokasi->nama_lokasi ?? 'Tanpa Lokasi';
-        });
-
-        return view('barang.index', compact('barangs', 'grouped'));
+        return view('barang.index', compact('barangs'));
     }
 
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         $kategori = Kategori::all();
@@ -78,13 +88,11 @@ class BarangController extends Controller implements HasMiddleware
         return view('barang.create', compact('barang', 'kategori', 'lokasi'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'kode_barang' => 'required|string|max:50|unique:barangs,kode_barang',
+            'mode_input' => 'nullable|in:masal,unit',
+            'kode_barang' => 'required|string|max:50',
             'nama_barang' => 'required|string|max:150',
             'kategori_id' => 'required|exists:kategoris,id',
             'lokasi_id' => 'required|exists:lokasis,id',
@@ -98,43 +106,134 @@ class BarangController extends Controller implements HasMiddleware
             'is_pinjaman' => 'nullable|boolean',
         ]);
 
+        // default mode_input = masal
+        $validated['mode_input'] = $validated['mode_input'] ?? 'masal';
+
+        // Validasi lokasi jika user petugas
         $user = Auth::user();
         if ($user->isPetugas() && $user->lokasi_id && $validated['lokasi_id'] != $user->lokasi_id) {
             return back()->with('error', 'Anda hanya dapat menambahkan barang di lokasi yang ditugaskan.');
         }
 
-        // Hitung total jumlah
-        $validated['jumlah'] = $validated['jumlah_baik']
-            + $validated['jumlah_rusak_ringan']
-            + $validated['jumlah_rusak_berat'];
-
-        // Tentukan kondisi dominan
-        if (
-            $validated['jumlah_baik'] >= $validated['jumlah_rusak_ringan']
-            && $validated['jumlah_baik'] >= $validated['jumlah_rusak_berat']
-        ) {
-            $validated['kondisi'] = 'Baik';
-        } elseif ($validated['jumlah_rusak_ringan'] >= $validated['jumlah_rusak_berat']) {
-            $validated['kondisi'] = 'Rusak Ringan';
-        } else {
-            $validated['kondisi'] = 'Rusak Berat';
-        }
-
         $validated['is_pinjaman'] = $request->has('is_pinjaman');
 
+        // Upload gambar
         if ($request->hasFile('gambar')) {
             $validated['gambar'] = $request->file('gambar')->store(null, 'gambar-barang');
         }
 
-        Barang::create($validated);
+        // 🔧 Tambahkan logika kode_dasar otomatis
+        if ($validated['mode_input'] === 'unit') {
+            $validated['kode_dasar'] = $validated['kode_barang'];
+        } else {
+            $validated['kode_dasar'] = null;
+        }
 
-        return redirect()->route('barang.index')
-            ->with('success', 'Data barang berhasil ditambahkan.');
+        DB::beginTransaction();
+        try {
+            if ($validated['mode_input'] === 'unit') {
+                $this->storePerUnit($validated);
+            } else {
+                $this->storeMasal($validated);
+            }
+
+            DB::commit();
+            return redirect()->route('barang.index')
+                ->with('success', 'Data barang berhasil ditambahkan.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
     }
 
-    /**
-     * Display the specified resource.
-     */
+    private function storeMasal(array $data)
+    {
+        $data['jumlah'] = $data['jumlah_baik'] + $data['jumlah_rusak_ringan'] + $data['jumlah_rusak_berat'];
+        $data['kondisi'] = $this->determineKondisi($data);
+        $data['kode_dasar'] = null;
+
+        Barang::create($data);
+    }
+
+    private function storePerUnit(array $data)
+    {
+        $totalUnit = $data['jumlah_baik'];
+        $kodeBase = $this->extractKodeBase($data['kode_barang']);
+        $startNumber = $this->extractStartNumber($data['kode_barang']);
+
+        // Simpan parent barang sebagai unit pertama
+        $parentKode = $kodeBase . str_pad($startNumber, 2, '0', STR_PAD_LEFT);
+
+        $parent = Barang::create([
+            'mode_input' => 'unit',
+            'kode_barang' => $parentKode,
+            'kode_dasar' => $parentKode, // kode_dasar = kode_barang untuk parent
+            'nama_barang' => $data['nama_barang'],
+            'kategori_id' => $data['kategori_id'],
+            'lokasi_id' => $data['lokasi_id'],
+            'jumlah_baik' => 1,
+            'jumlah_rusak_ringan' => 0,
+            'jumlah_rusak_berat' => 0,
+            'jumlah' => 1,
+            'kondisi' => 'Baik',
+            'satuan' => $data['satuan'],
+            'tanggal_pengadaan' => $data['tanggal_pengadaan'],
+            'sumber' => $data['sumber'],
+            'gambar' => $data['gambar'] ?? null,
+            'is_pinjaman' => $data['is_pinjaman'],
+        ]);
+
+        // Simpan child units (dimulai dari unit ke-2)
+        for ($i = 1; $i < $totalUnit; $i++) {
+            $unitNumber = $startNumber + $i;
+            $kodeUnit = $kodeBase . str_pad($unitNumber, 2, '0', STR_PAD_LEFT);
+
+            Barang::create([
+                'mode_input' => 'unit',
+                'kode_barang' => $kodeUnit,
+                'kode_dasar' => $parentKode, // mengacu ke parent
+                'nama_barang' => $data['nama_barang'],
+                'kategori_id' => $data['kategori_id'],
+                'lokasi_id' => $data['lokasi_id'],
+                'jumlah_baik' => 1,
+                'jumlah_rusak_ringan' => 0,
+                'jumlah_rusak_berat' => 0,
+                'jumlah' => 1,
+                'kondisi' => 'Baik',
+                'satuan' => $data['satuan'],
+                'tanggal_pengadaan' => $data['tanggal_pengadaan'],
+                'sumber' => $data['sumber'],
+                'gambar' => $data['gambar'] ?? null,
+                'is_pinjaman' => $data['is_pinjaman'],
+            ]);
+        }
+    }
+
+    private function extractKodeBase(string $kode): string
+    {
+        return preg_replace('/\d+$/', '', $kode);
+    }
+
+    private function extractStartNumber(string $kode): int
+    {
+        preg_match('/\d+$/', $kode, $matches);
+        return $matches[0] ?? 1;
+    }
+
+    private function determineKondisi(array $data): string
+    {
+        $baik = $data['jumlah_baik'];
+        $ringan = $data['jumlah_rusak_ringan'];
+        $berat = $data['jumlah_rusak_berat'];
+
+        if ($baik >= $ringan && $baik >= $berat) {
+            return 'Baik';
+        } elseif ($ringan >= $berat) {
+            return 'Rusak Ringan';
+        }
+        return 'Rusak Berat';
+    }
+
     public function show(Barang $barang)
     {
         $user = Auth::user();
@@ -142,13 +241,10 @@ class BarangController extends Controller implements HasMiddleware
             abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
         }
 
-        $barang->load(['kategori', 'lokasi']);
+        $barang->load(['kategori', 'lokasi', 'childUnits']);
         return view('barang.show', compact('barang'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Barang $barang)
     {
         $user = Auth::user();
@@ -166,18 +262,11 @@ class BarangController extends Controller implements HasMiddleware
         return view('barang.edit', compact('barang', 'kategori', 'lokasi'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Barang $barang)
     {
-        $user = Auth::user();
-        if ($user->isPetugas() && $user->lokasi_id && $barang->lokasi_id != $user->lokasi_id) {
-            abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
-        }
-
         $validated = $request->validate([
-            'kode_barang' => 'required|string|max:50|unique:barangs,kode_barang,' . $barang->id,
+            'mode_input' => 'nullable|in:masal,unit',
+            'kode_barang' => 'required|string|max:50',
             'nama_barang' => 'required|string|max:150',
             'kategori_id' => 'required|exists:kategoris,id',
             'lokasi_id' => 'required|exists:lokasis,id',
@@ -191,32 +280,32 @@ class BarangController extends Controller implements HasMiddleware
             'is_pinjaman' => 'nullable|boolean',
         ]);
 
-        if ($user->isPetugas() && $user->lokasi_id && $validated['lokasi_id'] != $user->lokasi_id) {
-            return back()->with('error', 'Anda hanya dapat memindahkan barang ke lokasi yang ditugaskan.');
-        }
-
-        $validated['jumlah'] = $validated['jumlah_baik']
-            + $validated['jumlah_rusak_ringan']
-            + $validated['jumlah_rusak_berat'];
-
-        if (
-            $validated['jumlah_baik'] >= $validated['jumlah_rusak_ringan']
-            && $validated['jumlah_baik'] >= $validated['jumlah_rusak_berat']
-        ) {
-            $validated['kondisi'] = 'Baik';
-        } elseif ($validated['jumlah_rusak_ringan'] >= $validated['jumlah_rusak_berat']) {
-            $validated['kondisi'] = 'Rusak Ringan';
-        } else {
-            $validated['kondisi'] = 'Rusak Berat';
-        }
-
+        $validated['mode_input'] = $validated['mode_input'] ?? 'masal';
         $validated['is_pinjaman'] = $request->has('is_pinjaman');
 
+        $user = Auth::user();
+        if ($user->isPetugas() && $user->lokasi_id && $validated['lokasi_id'] != $user->lokasi_id) {
+            return back()->with('error', 'Anda hanya dapat mengubah barang di lokasi yang ditugaskan.');
+        }
+
+        // Cegah perubahan mode_input dari masal → unit
+        if ($barang->mode_input === 'masal' && $request->mode_input === 'unit') {
+            return back()->with('error', 'Barang dengan mode input "Masal" tidak dapat diubah menjadi "Per Unit".');
+        }
+
+        // Upload gambar baru jika ada
         if ($request->hasFile('gambar')) {
-            if ($barang->gambar) {
-                Storage::disk('gambar-barang')->delete($barang->gambar);
+            if ($barang->gambar && \Storage::disk('gambar-barang')->exists($barang->gambar)) {
+                \Storage::disk('gambar-barang')->delete($barang->gambar);
             }
             $validated['gambar'] = $request->file('gambar')->store(null, 'gambar-barang');
+        }
+
+        // Logika mode_input dan kode_dasar
+        if ($validated['mode_input'] === 'unit' && empty($barang->kode_dasar)) {
+            $validated['kode_dasar'] = $barang->kode_barang;
+        } elseif ($validated['mode_input'] === 'masal') {
+            $validated['kode_dasar'] = null;
         }
 
         $barang->update($validated);
@@ -225,9 +314,7 @@ class BarangController extends Controller implements HasMiddleware
             ->with('success', 'Data barang berhasil diperbarui.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+
     public function destroy(Barang $barang)
     {
         $user = Auth::user();
@@ -235,18 +322,39 @@ class BarangController extends Controller implements HasMiddleware
             abort(403, 'Anda tidak memiliki akses ke barang di lokasi ini.');
         }
 
-        if ($barang->gambar) {
-            Storage::disk('gambar-barang')->delete($barang->gambar);
+        DB::beginTransaction();
+        try {
+            // Jika barang adalah parent unit, hapus semua child units juga
+            if ($barang->mode_input === 'unit' && $barang->kode_barang === $barang->kode_dasar) {
+                $childUnits = Barang::where('kode_dasar', $barang->kode_barang)
+                    ->where('id', '!=', $barang->id)
+                    ->get();
+
+                foreach ($childUnits as $child) {
+                    if ($child->gambar) {
+                        Storage::disk('gambar-barang')->delete($child->gambar);
+                    }
+                    $child->delete();
+                }
+            }
+
+            // Hapus gambar parent
+            if ($barang->gambar) {
+                Storage::disk('gambar-barang')->delete($barang->gambar);
+            }
+
+            // Hapus parent barang
+            $barang->delete();
+
+            DB::commit();
+            return redirect()->route('barang.index')
+                ->with('success', 'Data barang berhasil dihapus.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
-
-        $barang->delete();
-
-        return redirect()->route('barang.index')->with('success', 'Data barang berhasil dihapus.');
     }
 
-    /**
-     * Cetak laporan barang (PDF)
-     */
     public function cetakLaporan()
     {
         $query = Barang::with(['kategori', 'lokasi']);

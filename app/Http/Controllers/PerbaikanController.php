@@ -22,30 +22,30 @@ class PerbaikanController extends Controller implements HasMiddleware
     }
 
     public function index(Request $request)
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    $statusOptions = ['Menunggu', 'Sedang Diperbaiki', 'Selesai'];
-    $tingkatOptions = ['Ringan', 'Sedang', 'Berat'];
+        $statusOptions = ['Menunggu', 'Sedang Diperbaiki', 'Selesai'];
+        $tingkatOptions = ['Ringan', 'Sedang', 'Berat'];
 
-    $query = Perbaikan::with(['barang.kategori', 'barang.lokasi', 'peminjaman'])
-        ->orderBy('created_at', 'desc');
+        $query = Perbaikan::with(['barang.kategori', 'barang.lokasi', 'peminjaman'])
+            ->orderBy('created_at', 'desc');
 
-    if ($user->hasRole('Teknisi')) {
-        $query->whereHas('barang.lokasi', function ($q) use ($user) {
-            $q->where('id', $user->lokasi_id);
+        if ($user->hasRole('Teknisi')) {
+            $query->whereHas('barang.lokasi', function ($q) use ($user) {
+                $q->where('id', $user->lokasi_id);
+            });
+        }
+
+        $perbaikans = $query->get();
+
+        // === GROUPING PER LOKASI ===
+        $groupedPerbaikans = $perbaikans->groupBy(function ($item) {
+            return optional($item->barang->lokasi)->nama_lokasi ?? 'Lokasi Tidak Diketahui';
         });
+
+        return view('perbaikan.index', compact('groupedPerbaikans', 'statusOptions', 'tingkatOptions'));
     }
-
-    $perbaikans = $query->get();
-
-    // === GROUPING PER LOKASI ===
-    $groupedPerbaikans = $perbaikans->groupBy(function ($item) {
-        return optional($item->barang->lokasi)->nama_lokasi ?? 'Lokasi Tidak Diketahui';
-    });
-
-    return view('perbaikan.index', compact('groupedPerbaikans', 'statusOptions', 'tingkatOptions'));
-}
 
 
     public function create()
@@ -85,7 +85,7 @@ class PerbaikanController extends Controller implements HasMiddleware
 
         $perbaikan = Perbaikan::create($validated);
 
-        // 🔧 Pindahkan stok rusak ke stok sedang diperbaiki
+        // Pindahkan stok rusak ke stok sedang diperbaiki
         if ($validated['tingkat_kerusakan'] === 'Rusak Ringan') {
             $barang->jumlah_rusak_ringan -= $validated['jumlah_rusak'];
         } else {
@@ -130,11 +130,18 @@ class PerbaikanController extends Controller implements HasMiddleware
             $barang->jumlah_diperbaiki -= $perbaikan->jumlah_rusak;
             $barang->jumlah_baik += $perbaikan->jumlah_rusak;
 
+            // UPDATE KONDISI BARANG
+            $barang->kondisi = $this->determineKondisi($barang);
+
             $barang->save();
+
+            // UPDATE PARENT JIKA INI ADALAH CHILD UNIT
+            $this->updateParentStock($barang);
         }
 
         $perbaikan->update($validated);
 
+        // Redirect ke halaman barang agar data terupdate otomatis
         return redirect()->route('perbaikan.index')
             ->with('success', 'Data perbaikan berhasil diperbarui.');
     }
@@ -160,6 +167,71 @@ class PerbaikanController extends Controller implements HasMiddleware
 
         return redirect()->route('perbaikan.index')
             ->with('success', 'Data perbaikan berhasil dihapus dan stok dikembalikan.');
+    }
+
+    /**
+     * Tentukan kondisi dominan berdasarkan jumlah stok
+     */
+    private function determineKondisi($barang): string
+    {
+        $baik = $barang->jumlah_baik ?? 0;
+        $ringan = $barang->jumlah_rusak_ringan ?? 0;
+        $berat = $barang->jumlah_rusak_berat ?? 0;
+
+        if ($baik >= $ringan && $baik >= $berat) {
+            return 'Baik';
+        } elseif ($ringan >= $berat) {
+            return 'Rusak Ringan';
+        }
+        return 'Rusak Berat';
+    }
+
+    /**
+     * Update stok parent ketika child unit diperbarui
+     * Ini mengatasi bug dimana kondisi parent tidak terupdate
+     */
+    private function updateParentStock(Barang $childUnit)
+    {
+        // Hanya update jika ini adalah child unit (punya kode_dasar yang berbeda dari kode_barang)
+        if (!$childUnit->kode_dasar || $childUnit->kode_dasar === $childUnit->kode_barang) {
+            return;
+        }
+
+        // Cari parent berdasarkan kode_dasar
+        $parent = Barang::where('kode_barang', $childUnit->kode_dasar)
+            ->where('mode_input', 'unit')
+            ->first();
+
+        if (!$parent) {
+            return;
+        }
+
+        // Hitung total stok dari semua child + parent
+        $allUnits = Barang::where(function ($q) use ($parent) {
+            $q->where('kode_barang', $parent->kode_barang)
+                ->orWhere('kode_dasar', $parent->kode_barang);
+        })->get();
+
+        $totalBaik = $allUnits->sum('jumlah_baik');
+        $totalRingan = $allUnits->sum('jumlah_rusak_ringan');
+        $totalBerat = $allUnits->sum('jumlah_rusak_berat');
+
+        // Tentukan kondisi parent berdasarkan total stok
+        $parentKondisi = $this->determineKondisi(
+            (object)[
+                'jumlah_baik' => $totalBaik,
+                'jumlah_rusak_ringan' => $totalRingan,
+                'jumlah_rusak_berat' => $totalBerat
+            ]
+        );
+
+        // Update parent dengan total stok dari semua units
+        $parent->update([
+            'jumlah_baik' => $totalBaik,
+            'jumlah_rusak_ringan' => $totalRingan,
+            'jumlah_rusak_berat' => $totalBerat,
+            'kondisi' => $parentKondisi,
+        ]);
     }
 
     public function Laporan()
@@ -205,7 +277,14 @@ class PerbaikanController extends Controller implements HasMiddleware
             // Pindahkan dari sedang diperbaiki ke stok baik
             $barang->jumlah_diperbaiki -= $perbaikan->jumlah_rusak;
             $barang->jumlah_baik += $perbaikan->jumlah_rusak;
+
+            // UPDATE KONDISI BARANG
+            $barang->kondisi = $this->determineKondisi($barang);
+
             $barang->save();
+
+            // UPDATE PARENT JIKA INI ADALAH CHILD UNIT
+            $this->updateParentStock($barang);
         }
 
         $perbaikan->update($validated);

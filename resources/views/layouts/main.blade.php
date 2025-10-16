@@ -1,6 +1,7 @@
 {{-- resources/views/components/main-layout.blade.php --}}
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,22 +18,43 @@
     {{-- Laravel Vite --}}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
+
 <body>
     <div class="min-vh-100 bg-light pb-2">
-        
+
         {{-- Navbar --}}
         @include('layouts.navigation')
 
         {{-- Page Header --}}
         @if ($titlePage)
-            <header class="bg-white shadow-sm">
-                <div class="container py-4">
-                    <h2 class="h5 mb-0">
-                        {{ $titlePage }}
-                    </h2>
-                </div>
-            </header>
+        <header class="bg-white shadow-sm">
+            <div class="container py-4">
+                <h2 class="h5 mb-0">
+                    {{ $titlePage }}
+                </h2>
+            </div>
+        </header>
         @endif
+
+        {{-- Alert Section --}}
+        @if (session('error'))
+        <div class="container mt-3">
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ session('error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        </div>
+        @endif
+
+        @if (session('success'))
+        <div class="container mt-3">
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        </div>
+        @endif
+
 
         {{-- Main Content --}}
         <main class="container">
@@ -58,4 +80,5 @@
         });
     </script>
 </body>
+
 </html>

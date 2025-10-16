@@ -25,19 +25,54 @@
         <label class="form-label">Barang <span class="text-danger">*</span></label>
         <select name="barang_id" id="barang_id" class="form-select @error('barang_id') is-invalid @enderror" required>
             <option value="">Pilih Barang</option>
-            @foreach($barangs as $barang)
-            <option value="{{ $barang->id }}"
-                data-kode="{{ $barang->kode_barang }}"
-                data-nama="{{ $barang->nama_barang }}"
-                data-kategori="{{ $barang->kategori->nama_kategori }}"
-                data-lokasi="{{ $barang->lokasi->nama_lokasi }}"
-                data-stok="{{ $barang->stok_tersedia }}"
-                data-satuan="{{ $barang->satuan }}"
-                {{ old('barang_id', $peminjaman->barang_id) == $barang->id ? 'selected' : '' }}>
-                {{ $barang->kode_barang }} - {{ $barang->nama_barang }} (Stok: {{ $barang->stok_tersedia }})
-            </option>
+
+            {{-- =======================
+                 BARANG MASAL
+            ======================= --}}
+            <optgroup label="Barang Massal">
+                @foreach($barangs->where('mode_input', 'masal') as $item)
+                <option value="{{ $item->id }}"
+                    data-kode="{{ $item->kode_barang }}"
+                    data-nama="{{ $item->nama_barang }}"
+                    data-kategori="{{ $item->kategori->nama_kategori ?? '-' }}"
+                    data-lokasi="{{ $item->lokasi->nama_lokasi ?? '-' }}"
+                    data-stok="{{ $item->stok_tersedia }}"
+                    data-satuan="{{ $item->satuan }}"
+                    {{ old('barang_id', $peminjaman->barang_id ?? '') == $item->id ? 'selected' : '' }}>
+                    {{ $item->kode_barang }} - {{ $item->nama_barang }} (Stok: {{ $item->stok_tersedia }})
+                </option>
+                @endforeach
+            </optgroup>
+
+            {{-- =======================
+                 BARANG PER UNIT
+            ======================= --}}
+            @php
+            // Kelompokkan barang unit berdasarkan kode_dasar
+            $unitGroups = $barangs->where('mode_input', 'unit')->groupBy(function ($item) {
+            return $item->kode_dasar ?: $item->kode_barang;
+            });
+            @endphp
+
+            @foreach($unitGroups as $kodeDasar => $group)
+            {{-- Label grup menggunakan nama barang pertama --}}
+            <optgroup label="{{ $group->first()->nama_barang }}">
+                @foreach($group as $barang)
+                <option value="{{ $barang->id }}"
+                    data-kode="{{ $barang->kode_barang }}"
+                    data-nama="{{ $barang->nama_barang }}"
+                    data-kategori="{{ $barang->kategori->nama_kategori ?? '-' }}"
+                    data-lokasi="{{ $barang->lokasi->nama_lokasi ?? '-' }}"
+                    data-stok="{{ $barang->stok_tersedia }}"
+                    data-satuan="{{ $barang->satuan }}"
+                    {{ old('barang_id', $peminjaman->barang_id ?? '') == $barang->id ? 'selected' : '' }}>
+                    {{ $barang->kode_barang }} - {{ $barang->nama_barang }}
+                </option>
+                @endforeach
+            </optgroup>
             @endforeach
         </select>
+
         @error('barang_id')
         <div class="invalid-feedback">{{ $message }}</div>
         @enderror

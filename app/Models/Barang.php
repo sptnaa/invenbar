@@ -16,7 +16,7 @@ class Barang extends Model
     ];
 
     // ==========================
-    // 🔹 RELASI
+    // RELASI
     // ==========================
     public function kategori(): BelongsTo
     {
@@ -39,7 +39,46 @@ class Barang extends Model
     }
 
     // ==========================
-    // 🔹 KONDISI DOMINAN
+    // RELASI PARENT & CHILD UNIT
+    // ==========================
+    public function childUnits()
+    {
+        return $this->hasMany(Barang::class, 'kode_dasar', 'kode_barang')
+            ->whereColumn('kode_barang', '!=', 'kode_dasar')
+            ->orderBy('kode_barang');
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(Barang::class, 'kode_dasar', 'kode_barang');
+    }
+
+    public function isParentUnit()
+    {
+        return $this->mode_input === 'unit' &&
+            ($this->kode_dasar === $this->kode_barang || $this->kode_dasar === null);
+    }
+
+    // ==========================
+    // JUMLAH UNIT
+    // ==========================
+    public function getTotalUnitsAttribute()
+    {
+        if ($this->isParentUnit()) {
+            return $this->childUnits()->count() + 1; // +1 termasuk parent
+        }
+        return 1;
+    }
+
+    public function getTotalUnitsLabelAttribute()
+    {
+        $jumlah = $this->total_units;
+        $satuan = $jumlah > 1 ? 'Unit' : 'Unit';
+        return "{$jumlah} {$satuan}";
+    }
+
+    // ==========================
+    // KONDISI DOMINAN
     // ==========================
     public function getKondisiDominanAttribute()
     {
@@ -57,7 +96,22 @@ class Barang extends Model
     }
 
     // ==========================
-    // 🔹 KONDISI UNTUK BADGE
+    // KONDISI TOTAL (parent + child)
+    // ==========================
+    public function getKondisiSummaryAttribute()
+    {
+        // ambil semua anak
+        $childUnits = $this->childUnits;
+
+        // gabungkan parent dan anak
+        $allUnits = collect([$this])->merge($childUnits);
+
+        // hitung jumlah berdasarkan kondisi
+        return $allUnits->groupBy('kondisi')->map->count();
+    }
+
+    // ==========================
+    // KONDISI UNTUK BADGE
     // ==========================
     public function getKondisiArrayAttribute()
     {
@@ -86,11 +140,17 @@ class Barang extends Model
     }
 
     // ==========================
-    // 🔹 STOK & PERBAIKAN
+    // STOK & PERBAIKAN
     // ==========================
-    public function getJumlahAttribute()
+    public function getJumlahAttribute($value)
     {
-        return ($this->jumlah_baik ?? 0) + ($this->jumlah_rusak_ringan ?? 0) + ($this->jumlah_rusak_berat ?? 0);
+        if (isset($this->attributes['jumlah'])) {
+            return $this->attributes['jumlah'];
+        }
+
+        return ($this->jumlah_baik ?? 0)
+            + ($this->jumlah_rusak_ringan ?? 0)
+            + ($this->jumlah_rusak_berat ?? 0);
     }
 
     public function getStokTersediaAttribute()
@@ -110,7 +170,7 @@ class Barang extends Model
     }
 
     // ==========================
-    // 🔹 STATUS PINJAM & PERBAIKAN
+    // STATUS PINJAM & PERBAIKAN
     // ==========================
     public function canBeBorrowed($jumlahPinjam = 1)
     {
@@ -128,19 +188,53 @@ class Barang extends Model
     }
 
     // ==========================
-    // 🔹 SCOPE
+    // MODE INPUT
+    // ==========================
+    public function getIsUnitModeAttribute()
+    {
+        return $this->mode_input === 'unit';
+    }
+
+    public function getIsMasalModeAttribute()
+    {
+        return $this->mode_input === 'masal';
+    }
+
+    // ==========================
+    // SCOPE
     // ==========================
     public function scopeTersedia($query, $jumlahMin = 1)
     {
-        return $query->whereRaw('(jumlah_baik - (SELECT COALESCE(SUM(jumlah_pinjam),0) FROM peminjamans WHERE peminjamans.barang_id = barangs.id AND tanggal_kembali_aktual IS NULL)) >= ?', [$jumlahMin])
-            ->where('is_pinjaman', true);
+        return $query->whereRaw(
+            '(jumlah_baik - (SELECT COALESCE(SUM(jumlah_pinjam),0) 
+              FROM peminjamans 
+              WHERE peminjamans.barang_id = barangs.id 
+              AND tanggal_kembali_aktual IS NULL)) >= ?',
+            [$jumlahMin]
+        )->where('is_pinjaman', true);
     }
 
     public function scopePerluPerbaikan($query)
     {
         return $query->where(function ($q) {
             $q->where('jumlah_rusak_ringan', '>', 0)
-              ->orWhere('jumlah_rusak_berat', '>', 0);
+                ->orWhere('jumlah_rusak_berat', '>', 0);
+        });
+    }
+
+    public function scopeParentOnly($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('mode_input', 'masal')
+                ->orWhere(function ($subQ) {
+                    $subQ->where('mode_input', 'unit')
+                        ->whereColumn('kode_barang', 'kode_dasar');
+                })
+                ->orWhere(function ($subQ) {
+                    $subQ->where('mode_input', 'unit')
+                        ->whereNull('kode_dasar')
+                        ->orWhere('kode_dasar', '');
+                });
         });
     }
 }
